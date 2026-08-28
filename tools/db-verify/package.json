@@ -1,0 +1,13 @@
+{
+  "name": "@liftflow/db-verify",
+  "private": true,
+  "description": "Loads supabase migrations into in-memory Postgres (PGLite) and runs RLS + constraint regression tests. No Docker required.",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node db_test.mjs"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.4.0"
+  }
+}

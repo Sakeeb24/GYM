@@ -1,0 +1,52 @@
+name: liftflow
+description: "LiftFlow — multi-tenant gym retention & management SaaS."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management (mirrors MindSpace)
+  flutter_riverpod: ^2.6.1
+
+  # Routing
+  go_router: ^17.5.0
+
+  # Backend
+  supabase_flutter: ^2.9.0
+
+  # Validation
+  formz: ^0.7.0
+
+  # Design
+  google_fonts: ^8.2.1
+
+  # Utils
+  intl: ^0.20.3
+  uuid: ^4.6.0
+  path_provider: ^2.1.5
+  shared_preferences: ^2.5.5
+  flutter_secure_storage: ^9.2.4
+  connectivity_plus: ^5.0.2
+  # flutter_background_fetch / workmanager deferred (offline sync) — added in MVP+
+  workmanager: ^0.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  mocktail: ^1.0.4
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/lottie/
