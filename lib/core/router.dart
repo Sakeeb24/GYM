@@ -1,4 +1,4 @@
-﻿// lib/core/router.dart
+// lib/core/router.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -50,7 +50,7 @@ class AppRouter {
           builder: (context, state) {
             final extra = state.extra as Map<String, String>? ?? {};
             return OtpScreen(
-              fullName: extra['full_name'] ?? '',
+              fullName: extra['fullName'] ?? extra['full_name'] ?? '',
               phone: extra['phone'] ?? '',
             );
           },
@@ -61,9 +61,9 @@ class AppRouter {
           builder: (context, state) {
             final extra = state.extra as Map<String, String>? ?? {};
             return AccountSetupScreen(
-              fullName: extra['full_name'] ?? '',
+              fullName: extra['fullName'] ?? extra['full_name'] ?? '',
               phone: extra['phone'] ?? '',
-              otpToken: extra['otp_token'] ?? '',
+              otpToken: extra['otpToken'] ?? extra['otp_token'] ?? '',
             );
           },
         ),
