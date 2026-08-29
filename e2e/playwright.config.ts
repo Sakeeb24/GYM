@@ -22,10 +22,10 @@ export default defineConfig({
       use: { ...devices['Pixel 5'] },
     },
   ],
-  webServer: process.env.CI ? undefined : {
-    command: 'flutter run -d web-server --web-port 3000 --web-renderer canvaskit',
+  webServer: {
+    command: 'npx serve -s ../build/web -p 3000',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
+    reuseExistingServer: true,
+    timeout: 30000,
   },
 });
