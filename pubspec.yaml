@@ -32,9 +32,9 @@ dependencies:
   path_provider: ^2.1.5
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^9.2.4
-  connectivity_plus: ^5.0.2
+  connectivity_plus: ^6.1.1
   # flutter_background_fetch / workmanager deferred (offline sync) — added in MVP+
-  workmanager: ^0.9.0
+  workmanager: ^0.10.9
 
 dev_dependencies:
   flutter_test:

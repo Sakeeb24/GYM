@@ -14,9 +14,29 @@ class AuthActions {
   final AuthRepository repo;
   AuthActions(this.repo);
 
-  Future<void> signInWithEmail(String email, String password) => repo.signInWithEmail(email, password);
-  Future<void> signInWithOtp(String email) => repo.signInWithOtp(email);
+  Future<void> signInWithUsername(String username, String password) =>
+      repo.signInWithUsername(username, password);
+
+  Future<void> sendPhoneOtp(String phone) => repo.sendPhoneOtp(phone);
+
+  Future<void> registerMember({
+    required String fullName,
+    required String phone,
+    required String otpToken,
+    required String username,
+    required String password,
+  }) =>
+      repo.registerMember(
+        fullName: fullName,
+        phone: phone,
+        otpToken: otpToken,
+        username: username,
+        password: password,
+      );
+
   Future<void> signOut() => repo.signOut();
+
+  Future<bool> isUsernameTaken(String username) => repo.isUsernameTaken(username);
 }
 
 final authActionsProvider = Provider((ref) => AuthActions(ref.watch(authRepositoryProvider)));

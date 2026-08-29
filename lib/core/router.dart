@@ -1,10 +1,16 @@
-// lib/core/router.dart
+﻿// lib/core/router.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'widgets/main_scaffold.dart';
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/register_screen.dart';
+import '../features/auth/presentation/otp_screen.dart';
+import '../features/auth/presentation/account_setup_screen.dart';
+
+/// Routes accessible without authentication.
+const _publicRoutes = {'/login', '/register', '/otp', '/account-setup'};
 
 class AppRouter {
   AppRouter._();
@@ -16,14 +22,13 @@ class AppRouter {
         final profileAsync = ref.read(authStateProvider);
         final profile = profileAsync.valueOrNull;
         final currentPath = state.uri.path;
-        final loggingIn = currentPath == '/login';
+        final isPublic = _publicRoutes.contains(currentPath);
 
         if (profile == null) {
-          return loggingIn ? null : '/login';
+          return isPublic ? null : '/login';
         }
-        if (loggingIn) {
-          return '/app';
-        }
+        // Authenticated: redirect away from public routes.
+        if (isPublic) return '/app';
         return null;
       },
       routes: [
@@ -32,6 +37,38 @@ class AppRouter {
           name: 'login',
           builder: (context, state) => const LoginScreen(),
         ),
+
+        // ── Registration flow (3 steps) ───────────────────────────────────
+        GoRoute(
+          path: '/register',
+          name: 'register',
+          builder: (context, state) => const RegisterScreen(),
+        ),
+        GoRoute(
+          path: '/otp',
+          name: 'otp',
+          builder: (context, state) {
+            final extra = state.extra as Map<String, String>? ?? {};
+            return OtpScreen(
+              fullName: extra['full_name'] ?? '',
+              phone: extra['phone'] ?? '',
+            );
+          },
+        ),
+        GoRoute(
+          path: '/account-setup',
+          name: 'account-setup',
+          builder: (context, state) {
+            final extra = state.extra as Map<String, String>? ?? {};
+            return AccountSetupScreen(
+              fullName: extra['full_name'] ?? '',
+              phone: extra['phone'] ?? '',
+              otpToken: extra['otp_token'] ?? '',
+            );
+          },
+        ),
+
+        // ── Authenticated shell ───────────────────────────────────────────
         GoRoute(
           path: '/app',
           name: 'app',

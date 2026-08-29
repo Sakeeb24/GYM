@@ -7,8 +7,8 @@ import 'app_radii.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData light(BuildContext ctx) => _build(Brightness.light);
-  static ThemeData dark(BuildContext ctx) => _build(Brightness.dark);
+  static ThemeData light([BuildContext? ctx]) => _build(Brightness.light);
+  static ThemeData dark([BuildContext? ctx]) => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;

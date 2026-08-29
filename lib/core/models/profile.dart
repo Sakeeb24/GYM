@@ -19,6 +19,8 @@ class Profile {
   final String? fullName;
   final String? email;
   final String? phone;
+  final String? username;
+  final bool phoneVerified;
   final AppRole role;
 
   const Profile({
@@ -28,6 +30,8 @@ class Profile {
     this.fullName,
     this.email,
     this.phone,
+    this.username,
+    this.phoneVerified = false,
   });
 
   factory Profile.fromMap(Map<String, dynamic> m) => Profile(
@@ -37,5 +41,7 @@ class Profile {
         fullName: m['full_name'] as String?,
         email: m['email'] as String?,
         phone: m['phone'] as String?,
+        username: m['username'] as String?,
+        phoneVerified: (m['phone_verified'] as bool?) ?? false,
       );
 }
