@@ -20,29 +20,31 @@ abstract class AttendanceRepository {
 }
 
 class EdgeFunctionAttendanceRepository implements AttendanceRepository {
-  final SupabaseClient _client;
-  EdgeFunctionAttendanceRepository([SupabaseClient? client]) : _client = client ?? AppSupabase.client;
+  final SupabaseClient? _client;
+  EdgeFunctionAttendanceRepository([SupabaseClient? client]) : _client = client;
+
+  SupabaseClient get client => _client ?? AppSupabase.client;
 
   @override
   Future<CheckInOutcome> recordCheckIn(String qrPayload) async {
-    final idem = Uuid().v4();
-    final res = await _client.functions.invoke('recordAttendance', body: {
-      'qrPayload': qrPayload,
-      'source': 'qr_self',
-      'idempotencyKey': idem,
-    });
-      'qrPayload': qrPayload,
-      'source': 'qr_self',
-      'idempotencyKey': idem,
-    });
-    if (res.error != null) return CheckInOutcome.error;
-    if (res.data == null) return CheckInOutcome.error;
-    final body = res.data as Map<String, dynamic>;
-    if (body['duplicate'] == true) return CheckInOutcome.duplicate;
-    final err = body['error'] as String? ?? '';
-    if (err.isNotEmpty && err.toLowerCase().contains('denied')) return CheckInOutcome.denied;
-    if (err.isNotEmpty) return CheckInOutcome.error;
-    return CheckInOutcome.success;
+    final idem = const Uuid().v4();
+    try {
+      final res = await client.functions.invoke('recordAttendance', body: {
+        'qrPayload': qrPayload,
+        'source': 'qr_self',
+        'idempotencyKey': idem,
+      });
+      if (res.data == null) return CheckInOutcome.error;
+      final body = res.data is Map<String, dynamic>
+          ? res.data as Map<String, dynamic>
+          : Map<String, dynamic>.from(res.data as Map);
+      if (body['duplicate'] == true) return CheckInOutcome.duplicate;
+      final err = body['error'] as String? ?? '';
+      if (err.isNotEmpty && err.toLowerCase().contains('denied')) return CheckInOutcome.denied;
+      if (err.isNotEmpty) return CheckInOutcome.error;
+      return CheckInOutcome.success;
+    } catch (_) {
+      return CheckInOutcome.error;
+    }
   }
 }
-

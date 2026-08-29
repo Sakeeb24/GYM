@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../business_rules/business_rules.dart';
 import '../../features/dashboard/presentation/owner_dashboard_screen.dart';
+import '../../features/dashboard/presentation/member_dashboard_screen.dart';
 import '../../features/members/presentation/members_screen.dart';
 import '../../features/red_list/presentation/red_list_screen.dart';
 import '../../features/qr_checkin/presentation/qr_checkin_screen.dart';
@@ -22,12 +23,14 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = _rolePages(widget.role, _index);
+    final pages = _rolePages(widget.role);
     final destinations = _roleDestinations(widget.role);
+    final safeIndex = _index < pages.length ? _index : 0;
+
     return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
+      body: IndexedStack(index: safeIndex, children: pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: safeIndex,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: destinations,
       ),
@@ -48,23 +51,26 @@ class _MainScaffoldState extends State<MainScaffold> {
       case AppRole.frontDesk:
         return const [
           NavigationDestination(icon: Icon(Icons.qr_code_scanner), label: 'Check-in'),
+          NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'Members'),
           NavigationDestination(icon: Icon(Icons.warning_amber_outlined), label: 'Red List'),
+        ];
+      case AppRole.trainer:
+        return const [
+          NavigationDestination(icon: Icon(Icons.qr_code_scanner), label: 'Check-in'),
+          NavigationDestination(icon: Icon(Icons.fitness_center), label: 'Members'),
         ];
       case AppRole.member:
         return const [
+          NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Pass'),
           NavigationDestination(icon: Icon(Icons.qr_code_scanner), label: 'Scan'),
           NavigationDestination(icon: Icon(Icons.currency_exchange), label: 'Renewals'),
           NavigationDestination(icon: Icon(Icons.payments_outlined), label: 'Payments'),
         ];
-      case AppRole.trainer:
-        return const [
-          NavigationDestination(icon: Icon(Icons.coerce), label: 'Coaching'),
-        ];
     }
   }
 
-  List<Widget> _rolePages(AppRole role, int selected) {
-    final all = switch (role) {
+  List<Widget> _rolePages(AppRole role) {
+    return switch (role) {
       AppRole.owner => const <Widget>[
         OwnerDashboardScreen(),
         MembersScreen(),
@@ -73,11 +79,21 @@ class _MainScaffoldState extends State<MainScaffold> {
         PaymentsScreen(),
         SettingsScreen(),
       ],
-      AppRole.frontDesk => const <Widget>[QrCheckInScreen(), RedListScreen()],
-      AppRole.member => const <Widget>[QrCheckInScreen(), RenewalsScreen(), PaymentsScreen()],
-      AppRole.trainer => const <Widget>[Center(child: Text('Coaching area - coming soon'))],
+      AppRole.frontDesk => const <Widget>[
+        QrCheckInScreen(),
+        MembersScreen(),
+        RedListScreen(),
+      ],
+      AppRole.trainer => const <Widget>[
+        QrCheckInScreen(),
+        MembersScreen(),
+      ],
+      AppRole.member => const <Widget>[
+        MemberDashboardScreen(),
+        QrCheckInScreen(),
+        RenewalsScreen(),
+        PaymentsScreen(),
+      ],
     };
-    // IndexedStack keeps all children alive; only the selected shows.
-    return all;
   }
 }

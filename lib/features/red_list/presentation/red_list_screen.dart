@@ -26,19 +26,28 @@ class RedListScreen extends ConsumerWidget {
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: cases.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (c, i) => Dismissible(
                   key: ValueKey(cases[i].id),
-                  background: Container(color: Colors.green.withAlpha(40), alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(horizontal: 16), child: const Icon(Icons.check, color: Colors.green)),
-                  onDismissed: (_) async {
+                  background: Container(
+                    color: Colors.green.withAlpha(40),
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: const Icon(Icons.check, color: Colors.green),
+                  ),
+                  onDismissed: (direction) async {
                     await ref.read(noShowRepositoryProvider).resolveCase(cases[i].id, 'resolved', 'returned');
-                    ref.refresh(openCasesProvider(profile.gymId).future);
                   },
                   child: _CaseTile(caseItem: cases[i]),
                 ),
               ),
         loading: () => const AppLoadingState(),
-        error: (e, _) => AppErrorState(message: 'Failed to load red list', onRetry: () => ref.refresh(openCasesProvider(profile.gymId).future)),
+        error: (e, stack) => AppErrorState(
+          message: 'Failed to load red list',
+          onRetry: () {
+            ref.invalidate(openCasesProvider(profile.gymId));
+          },
+        ),
       ),
     );
   }
@@ -51,12 +60,17 @@ class _CaseTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Card(child: ListTile(
-      leading: CircleAvatar(backgroundColor: cs.error.withAlpha(24), child: const Icon(Icons.warning_amber, color: Colors.red)),
-      title: Text(caseItem.memberName, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text('${caseItem.reason} • opened ${_formatDate(caseItem.createdAt)}'),
-      trailing: AppBadge(label: caseItem.status, color: _statusColor(caseItem.status)),
-    ));
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: cs.error.withAlpha(24),
+          child: const Icon(Icons.warning_amber, color: Colors.red),
+        ),
+        title: Text(caseItem.memberName, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text('${caseItem.reason} • opened ${_formatDate(caseItem.createdAt)}'),
+        trailing: AppBadge(label: caseItem.status, color: _statusColor(caseItem.status)),
+      ),
+    );
   }
 
   Color _statusColor(String s) => switch (s) {
@@ -64,5 +78,6 @@ class _CaseTile extends StatelessWidget {
     'resolved' => const Color(0xFF10B981),
     _ => const Color(0xFFF59E0B),
   };
-  String _formatDate(DateTime d) => '${d.year}-${d.month}-${d.day}';
+
+  String _formatDate(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

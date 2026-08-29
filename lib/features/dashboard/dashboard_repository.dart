@@ -1,5 +1,4 @@
 // lib/features/dashboard/dashboard_repository.dart
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/services/supabase_client.dart';
 
 class DashboardStats {
@@ -19,12 +18,14 @@ class SupabaseDashboardRepository implements DashboardRepository {
   @override
   Future<DashboardStats> fetchStats(String gymId) async {
     final client = AppSupabase.client;
-    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     final members = await client.from('members').select('id').eq('gym_id', gymId);
     final att = await client.from('attendance')
         .select('id').eq('gym_id', gymId)
-        .gte('check_in_at', '$todayT00:00:00').lt('check_in_at', '$todayT23:59:59');
+        .gte('check_in_at', '${today}T00:00:00')
+        .lt('check_in_at', '${today}T23:59:59');
     final red = await client.from('no_show_cases').select('id').eq('gym_id', gymId).eq('status', 'open');
     final ren = await client.from('renewal_orders').select('id').eq('gym_id', gymId).eq('status', 'pending');
 

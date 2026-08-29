@@ -30,21 +30,25 @@ class RenewalsScreen extends ConsumerWidget {
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: orders.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (c, i) {
                   final o = orders[i];
                   final due = DateTime.tryParse(o['due_at'] as String? ?? '');
                   return Card(child: ListTile(
                     title: Text(o['member_id'] as String),
-                    subtitle: Text('Due ${due != null ? '${due.year}-${due.month}-${due.day}' : '—'} · ${(o['amount_cents'] as int? ?? 0) / 100}'),
+                    subtitle: Text('Due ${due != null ? '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}' : '—'} · ${(o['amount_cents'] as int? ?? 0) / 100}'),
                     trailing: AppBadge(label: o['reminder_stage'] ?? 'renew', color: const Color(0xFF0EA5E9)),
                   ));
                 },
               ),
         loading: () => const AppLoadingState(),
-        error: (e, _) => AppErrorState(message: 'Failed to load renewals', onRetry: () => ref.refresh(pendingRenewalsProvider(profile.gymId).future)),
+        error: (e, stack) => AppErrorState(
+          message: 'Failed to load renewals',
+          onRetry: () {
+            ref.invalidate(pendingRenewalsProvider(profile.gymId));
+          },
+        ),
       ),
     );
   }
 }
-

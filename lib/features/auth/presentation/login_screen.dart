@@ -19,18 +19,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading = false;
   bool _otpMode = false;
 
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
   Future<void> _signIn() async {
     setState(() => _loading = true);
     final actions = ref.read(authActionsProvider);
     try {
       if (_otpMode) {
         await actions.signInWithOtp(_email.text.trim());
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Magic link sent.')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Magic link sent.')));
+        }
       } else {
         await actions.signInWithEmail(_email.text.trim(), _password.text);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign in failed: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sign in failed: $e')));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

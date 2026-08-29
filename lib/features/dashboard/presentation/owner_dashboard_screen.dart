@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../dashboard_repository.dart';
 import '../../../core/widgets/app_stat_card.dart';
-import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_error_state.dart';
 import '../../../core/widgets/app_loading_state.dart';
 import '../../../features/auth/auth_notifier.dart';
@@ -42,14 +41,13 @@ class OwnerDashboardScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               _stats(stats),
               const SizedBox(height: 24),
-            ],
+            ]),
           ),
         ),
+        loading: () => const AppLoadingState(),
+        error: (e, _) => AppErrorState(message: 'Failed to load dashboard', onRetry: () => ref.refresh(dashboardStatsProvider(gymId).future)),
       ),
-         loading: () => const AppLoadingState(),
-         error: (e, _) => AppErrorState(message: 'Failed to load dashboard', onRetry: () => ref.refresh(dashboardStatsProvider(gymId).future)),
-       ),
-     );
+    );
   }
 
   Widget _stats(DashboardStats s) {

@@ -15,6 +15,12 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _inactivity = TextEditingController();
 
+  @override
+  void dispose() {
+    _inactivity.dispose();
+    super.dispose();
+  }
+
   Future<void> _save(String gymId) async {
     await AppSupabase.client.from('gym_settings')
       .update({'inactivity_threshold_days': int.tryParse(_inactivity.text) ?? 7})
@@ -25,7 +31,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final profile = ref.watch(authStateProvider).valueOrNull;
     if (profile == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
@@ -37,8 +43,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         AppTextField(controller: _inactivity, label: 'No-show threshold (days)', keyboard: TextInputType.number),
         const SizedBox(height: 24),
       ]),
-      floatingActionButton: FloatingActionButton.extended(onPressed: () => _save(profile.gymId), label: const Text('Save'), icon: const Icon(Icons.save)),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _save(profile.gymId),
+        label: const Text('Save'),
+        icon: const Icon(Icons.save),
+      ),
     );
   }
 }
-

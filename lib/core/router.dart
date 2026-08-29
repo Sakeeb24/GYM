@@ -2,8 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'business_rules/business_rules.dart';
-import 'models/profile.dart';
 import 'widgets/main_scaffold.dart';
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -17,9 +15,15 @@ class AppRouter {
       redirect: (context, state) {
         final profileAsync = ref.read(authStateProvider);
         final profile = profileAsync.valueOrNull;
-        final loggingIn = state.subloc == '/login';
-        if (profile == null) return loggingIn ? null : '/login';
-        if (loggingIn) return '/app';
+        final currentPath = state.uri.path;
+        final loggingIn = currentPath == '/login';
+
+        if (profile == null) {
+          return loggingIn ? null : '/login';
+        }
+        if (loggingIn) {
+          return '/app';
+        }
         return null;
       },
       routes: [
@@ -42,7 +46,9 @@ class AppRouter {
           },
         ),
       ],
-      errorBuilder: (context, state) => Scaffold(body: Center(child: Text(state.error.toString()))),
+      errorBuilder: (context, state) => Scaffold(
+        body: Center(child: Text(state.error.toString())),
+      ),
     );
   }
 }

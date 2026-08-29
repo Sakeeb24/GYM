@@ -35,7 +35,7 @@ class PaymentsScreen extends ConsumerWidget {
             : ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: payments.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (context, index) => const SizedBox(height: 8),
                 itemBuilder: (c, i) {
                   final p = payments[i];
                   final status = p['status'] as String;
@@ -59,4 +59,3 @@ class PaymentsScreen extends ConsumerWidget {
     );
   }
 }
-

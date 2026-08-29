@@ -15,12 +15,8 @@ class AppSupabase {
     Env.validate();
     await Supabase.initialize(
       url: Env.supabaseUrl,
+      // ignore: deprecated_member_use
       anonKey: Env.supabaseAnonKey,
-      authOptions: FlutterAuthOptions(
-        autoRefreshToken: true,
-        persistSession: true,
-        debug: Env.isDev,
-      ),
     );
     _initialized = true;
   }
