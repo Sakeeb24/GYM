@@ -1,5 +1,5 @@
 // lib/features/red_list/presentation/red_list_screen.dart
-// At-Risk Member Retention Center (Red List)
+// Clean At-Risk Retention Center (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_badge.dart';
@@ -9,7 +9,6 @@ import '../../../core/widgets/app_error_state.dart';
 import '../../../core/widgets/app_loading_state.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../auth/auth_notifier.dart';
 import '../no_show_repository.dart';
@@ -34,19 +33,12 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Icon(Icons.local_fire_department_rounded, size: 22, color: AppColors.flameStreak),
-            const SizedBox(width: 10),
-            Text(
-              'RETENTION RED LIST',
-              style: AppTypography.labelAthletic.copyWith(
-                fontSize: 14,
-                letterSpacing: 1.2,
-                color: cs.onSurface,
-              ),
-            ),
-          ],
+        title: Text(
+          'Retention & Red List',
+          style: AppTypography.headlineLarge.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
         ),
       ),
       body: asyncCases.when(
@@ -58,31 +50,31 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
               // Category Filter Bar
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: categories.map((cat) {
                     final isSel = _activeCategory == cat;
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 6),
                       child: FilterChip(
                         label: Text(
                           cat,
-                          style: AppTypography.labelAthletic.copyWith(
-                            fontSize: 10,
+                          style: TextStyle(
+                            fontSize: 11,
                             color: isSel ? Colors.black : cs.onSurface,
-                            fontWeight: isSel ? FontWeight.w900 : FontWeight.w600,
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
                           ),
                         ),
                         selected: isSel,
                         onSelected: (val) => setState(() => _activeCategory = cat),
-                        selectedColor: isSel && cat == 'AT RISK' ? AppColors.flameStreak : AppColors.brand,
+                        selectedColor: AppColors.brand,
                         backgroundColor: cs.surface,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(16),
                           side: BorderSide(color: isSel ? AppColors.brand : cs.outline),
                         ),
                         showCheckmark: false,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                       ),
                     );
                   }).toList(),
@@ -99,8 +91,8 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         itemCount: cases.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (c, i) => _RetentionCard(
+                        separatorBuilder: (context, index) => const SizedBox(height: 10),
+                        itemBuilder: (c, i) => _CleanRetentionCard(
                           caseItem: cases[i],
                           onResolve: () async {
                             await ref.read(noShowRepositoryProvider).resolveCase(cases[i].id, 'resolved', 'returned');
@@ -126,11 +118,11 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
   }
 }
 
-class _RetentionCard extends StatelessWidget {
+class _CleanRetentionCard extends StatelessWidget {
   final NoShowCase caseItem;
   final VoidCallback onResolve;
 
-  const _RetentionCard({
+  const _CleanRetentionCard({
     required this.caseItem,
     required this.onResolve,
   });
@@ -138,107 +130,74 @@ class _RetentionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: AppRadii.r16,
-        border: Border.all(
-          color: AppColors.flameStreak.withAlpha(90),
-          width: 1.5,
-        ),
-        boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
+        borderRadius: AppRadii.r12,
+        border: Border.all(color: AppColors.flameStreak.withAlpha(80)),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.flameStreak.withAlpha(30),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.flameStreak),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.local_fire_department_rounded, color: AppColors.flameStreak, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          'AT RISK',
-                          style: AppTypography.labelAthletic.copyWith(
-                            color: AppColors.flameStreak,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
+                  const Icon(Icons.local_fire_department_rounded, color: AppColors.flameStreak, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    'At Risk',
+                    style: TextStyle(
+                      color: AppColors.flameStreak,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
               AppBadge(
-                label: caseItem.status.toUpperCase(),
+                label: caseItem.status,
                 color: AppColors.warning,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
-          // Athlete Name
           Text(
-            caseItem.memberName.toUpperCase(),
+            caseItem.memberName,
             style: AppTypography.titleMedium.copyWith(
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              letterSpacing: 0.3,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
             ),
           ),
-          const SizedBox(height: 6),
-
-          // Retention Details
-          Row(
-            children: [
-              Icon(Icons.timer_outlined, size: 14, color: cs.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Text(
-                'Last visit: 12 days ago • Reason: ${caseItem.reason}',
-                style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
           const SizedBox(height: 4),
-          Row(
-            children: const [
-              Icon(Icons.calendar_today_outlined, size: 14, color: AppColors.warning),
-              SizedBox(width: 6),
-              Text(
-                'Membership: Expires in 3 days',
-                style: TextStyle(
-                  color: AppColors.warning,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
 
-          // Action Buttons: [ CONTACT ] and [ RENEW ]
+          Text(
+            'Last visit: 12 days ago • Reason: ${caseItem.reason}',
+            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Membership: Expires in 3 days',
+            style: const TextStyle(
+              color: AppColors.warning,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(height: 12),
+
           Row(
             children: [
               Expanded(
                 child: AppButton(
-                  text: 'CONTACT',
+                  text: 'Contact',
                   variant: AppButtonVariant.outlined,
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                  height: 38,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Opening WhatsApp outreach for ${caseItem.memberName}...')),
@@ -246,12 +205,13 @@ class _RetentionCard extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: AppButton(
-                  text: 'RENEW & RESOLVE',
+                  text: 'Renew & Resolve',
                   variant: AppButtonVariant.filled,
-                  icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                  height: 38,
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
                   onPressed: onResolve,
                 ),
               ),

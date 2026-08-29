@@ -1,12 +1,11 @@
 // lib/features/members/presentation/members_screen.dart
-// Fitness Athlete Roster & Interactive Athlete Performance Profiles
+// Clean, Compact Member Roster & Athlete Profiles (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/member.dart';
 import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_progress_bar.dart';
@@ -48,7 +47,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => _AthleteProfileSheet(member: member),
     );
@@ -60,23 +59,15 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     if (profile == null) return const AppLoadingState();
     final membersAsync = ref.watch(membersProvider(profile.gymId));
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.groups_rounded, size: 22, color: isDark ? AppColors.brand : AppColors.brandDark),
-            const SizedBox(width: 10),
-            Text(
-              'ATHLETE ROSTER',
-              style: AppTypography.labelAthletic.copyWith(
-                fontSize: 14,
-                letterSpacing: 1.2,
-                color: cs.onSurface,
-              ),
-            ),
-          ],
+        title: Text(
+          'Members',
+          style: AppTypography.headlineLarge.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
         ),
       ),
       body: membersAsync.when(
@@ -97,14 +88,14 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
 
           return Column(
             children: [
-              // Search Input Header
+              // ── 1. Search Bar ─────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: TextField(
                   controller: _searchController,
                   onChanged: (val) => setState(() => _query = val.trim()),
                   decoration: InputDecoration(
-                    hintText: 'Search athlete name, phone, or ID (#LF-)...',
+                    hintText: 'Search members by name or ID...',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
                     suffixIcon: _query.isNotEmpty
                         ? IconButton(
@@ -117,31 +108,31 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                         : null,
                     filled: true,
                     fillColor: cs.surface,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     border: OutlineInputBorder(
-                      borderRadius: AppRadii.r12,
+                      borderRadius: AppRadii.r8,
                       borderSide: BorderSide(color: cs.outline),
                     ),
                   ),
                 ),
               ),
 
-              // Filter Chips
+              // ── 2. Filter Chips ───────────────────────────────────────
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                 child: Row(
                   children: ['ALL', 'ACTIVE', 'INACTIVE'].map((f) {
                     final isSel = _filter == f;
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 6),
                       child: FilterChip(
                         label: Text(
                           f,
-                          style: AppTypography.labelAthletic.copyWith(
-                            fontSize: 10,
+                          style: TextStyle(
+                            fontSize: 11,
                             color: isSel ? Colors.black : cs.onSurface,
-                            fontWeight: isSel ? FontWeight.w900 : FontWeight.w600,
+                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
                           ),
                         ),
                         selected: isSel,
@@ -149,31 +140,30 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                         selectedColor: AppColors.brand,
                         backgroundColor: cs.surface,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(16),
                           side: BorderSide(color: isSel ? AppColors.brand : cs.outline),
                         ),
                         showCheckmark: false,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                       ),
                     );
                   }).toList(),
                 ),
               ),
+              const SizedBox(height: 6),
 
-              const SizedBox(height: 8),
-
-              // Athlete List
+              // ── 3. Compact Member Cards List ──────────────────────────
               Expanded(
                 child: filtered.isEmpty
                     ? const AppEmptyState(
-                        message: 'No athletes match your search criteria.',
+                        message: 'No members match your search criteria.',
                         icon: Icons.person_search_rounded,
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         itemCount: filtered.length,
-                        separatorBuilder: (ctx, i) => const SizedBox(height: 12),
-                        itemBuilder: (c, i) => _AthleteCard(
+                        separatorBuilder: (ctx, i) => const SizedBox(height: 8),
+                        itemBuilder: (c, i) => _CompactMemberCard(
                           member: filtered[i],
                           onTap: () => _openAthleteProfile(context, filtered[i]),
                         ),
@@ -184,7 +174,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
         },
         loading: () => const AppLoadingState(),
         error: (e, stack) => AppErrorState(
-          message: 'Failed to load athlete roster',
+          message: 'Failed to load member roster',
           onRetry: () => ref.invalidate(membersProvider(profile.gymId)),
         ),
       ),
@@ -192,81 +182,53 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   }
 }
 
-class _AthleteCard extends StatelessWidget {
+class _CompactMemberCard extends StatelessWidget {
   final Member member;
   final VoidCallback onTap;
 
-  const _AthleteCard({required this.member, required this.onTap});
+  const _CompactMemberCard({required this.member, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final initials = member.fullName.isNotEmpty
-        ? member.fullName.trim().split(' ').map((s) => s.isNotEmpty ? s[0] : '').take(2).join()
-        : 'JD';
-
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: AppRadii.r16,
-        border: Border.all(color: cs.outline, width: 1),
-        boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
+        borderRadius: AppRadii.r12,
+        border: Border.all(color: cs.outline),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: AppRadii.r16,
+          borderRadius: AppRadii.r12,
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Row: Avatar + Name + ID + Status
+                // Top Row: Name + Tier & Status Pill
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.dSurfaceElevated : AppColors.brandContainer,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isDark ? AppColors.brand.withAlpha(70) : AppColors.brandDark.withAlpha(70),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          initials.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? AppColors.brand : AppColors.brandDark,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            member.fullName.toUpperCase(),
+                            member.fullName,
                             style: AppTypography.titleMedium.copyWith(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.2,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Text(
-                            '#LF-${member.memberNumber}',
-                            style: AppTypography.labelAthletic.copyWith(
-                              color: isDark ? AppColors.brand : AppColors.brandDark,
+                            'Pro Membership • #LF-${member.memberNumber}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: cs.onSurfaceVariant,
                               fontSize: 11,
                             ),
                           ),
@@ -274,80 +236,70 @@ class _AthleteCard extends StatelessWidget {
                       ),
                     ),
                     AppBadge(
-                      label: member.isActive ? 'ACTIVE' : 'INACTIVE',
+                      label: member.isActive ? 'Active' : 'Inactive',
                       color: member.isActive ? AppColors.statusActive : AppColors.statusExpired,
                       showDot: true,
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
 
-                // Membership & Streak Info
+                // Attendance + Streak Row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'PRO ATHLETE TIER',
-                      style: AppTypography.labelAthletic.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 10,
+                      '87% attendance',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
                       ),
                     ),
                     Row(
-                      children: [
-                        const Icon(Icons.local_fire_department_rounded, color: AppColors.flameStreak, size: 16),
-                        const SizedBox(width: 3),
+                      children: const [
+                        Icon(Icons.local_fire_department_rounded, color: AppColors.flameStreak, size: 14),
+                        SizedBox(width: 2),
                         Text(
-                          '24 DAY STREAK',
-                          style: AppTypography.labelAthletic.copyWith(
+                          '24 day streak',
+                          style: TextStyle(
                             color: AppColors.flameStreak,
                             fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-
-                // Attendance Rate Progress Bar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'ATTENDANCE',
-                      style: AppTypography.labelAthletic.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 10,
-                      ),
-                    ),
-                    Text(
-                      '87%',
-                      style: AppTypography.labelAthletic.copyWith(
-                        color: isDark ? AppColors.brand : AppColors.brandDark,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                AppProgressBar(
+                  progress: 0.87,
+                  height: 4,
+                  color: isDark ? AppColors.brand : AppColors.brandDark,
                 ),
-                const SizedBox(height: 6),
-                const AppProgressBar(progress: 0.87, height: 6),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
-                // Footer Expiry Note
+                // Bottom Row: Expiry + View Action
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'EXPIRES IN 18 DAYS',
+                      'Expires in 18 days',
                       style: AppTypography.bodySmall.copyWith(
                         color: AppColors.warning,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded, size: 16, color: Colors.grey),
+                    Text(
+                      'View →',
+                      style: TextStyle(
+                        color: isDark ? AppColors.brand : AppColors.brandDark,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -366,21 +318,16 @@ class _AthleteProfileSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final initials = member.fullName.isNotEmpty
-        ? member.fullName.trim().split(' ').map((s) => s.isNotEmpty ? s[0] : '').take(2).join()
-        : 'JD';
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Center(
               child: Container(
-                width: 40,
+                width: 36,
                 height: 4,
                 decoration: BoxDecoration(
                   color: cs.outline,
@@ -388,120 +335,50 @@ class _AthleteProfileSheet extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Header Section
-            Row(
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.dSurfaceElevated : AppColors.brandContainer,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.brand, width: 2),
-                  ),
-                  child: Center(
-                    child: Text(
-                      initials.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? AppColors.brand : AppColors.brandDark,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        member.fullName,
-                        style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '#LF-${member.memberNumber} • PRO MEMBER',
-                        style: AppTypography.bodySmall.copyWith(
-                          color: isDark ? AppColors.brand : AppColors.brandDark,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (member.phone != null)
-                        Text(
-                          member.phone!,
-                          style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // 4 Athlete Statistics Cards
-            Row(
-              children: const [
-                Expanded(
-                  child: _MiniStatTile(
-                    title: 'ATTENDANCE',
-                    value: '87%',
-                    icon: Icons.trending_up_rounded,
-                    color: AppColors.brand,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: _MiniStatTile(
-                    title: 'WORKOUTS',
-                    value: '42',
-                    icon: Icons.fitness_center_rounded,
-                    color: AppColors.goldMedal,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: const [
-                Expanded(
-                  child: _MiniStatTile(
-                    title: 'STREAK',
-                    value: '24 DAYS',
-                    icon: Icons.local_fire_department_rounded,
-                    color: AppColors.flameStreak,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: _MiniStatTile(
-                    title: 'MEMBERSHIP',
-                    value: '68 DAYS',
-                    icon: Icons.verified_rounded,
-                    color: AppColors.success,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Training Activity Breakdown
             Text(
-              'RECENT TRAINING SESSIONS',
-              style: AppTypography.labelAthletic.copyWith(
-                color: cs.onSurfaceVariant,
-                fontSize: 11,
+              member.fullName,
+              style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
+            ),
+            Text(
+              'Pro Member • #LF-${member.memberNumber}',
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+
+            // Attendance / Streak / Membership Simple Table
+            Container(
+              decoration: BoxDecoration(
+                color: cs.surface,
+                borderRadius: AppRadii.r8,
+                border: Border.all(color: cs.outline),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Column(
+                children: [
+                  _DataRow(label: 'Attendance', value: '87%'),
+                  const Divider(height: 16),
+                  _DataRow(label: 'Streak', value: '24 days 🔥'),
+                  const Divider(height: 16),
+                  _DataRow(label: 'Membership', value: '68 days active'),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            _SessionTile(day: 'Today', time: '07:15 AM', type: 'Strength & Conditioning'),
+            const SizedBox(height: 18),
+
+            Text(
+              'Recent Sessions',
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 8),
-            _SessionTile(day: 'Yesterday', time: '06:45 PM', type: 'Hypertrophy Upper Body'),
-            const SizedBox(height: 8),
-            _SessionTile(day: '2 days ago', time: '07:00 AM', type: 'Legs & Core Power'),
-            const SizedBox(height: 20),
+            _SimpleSessionRow(day: 'Today', time: '07:15 AM', session: 'Strength & Conditioning'),
+            const SizedBox(height: 6),
+            _SimpleSessionRow(day: 'Yesterday', time: '06:45 PM', session: 'Upper Body Workout'),
+            const SizedBox(height: 6),
+            _SimpleSessionRow(day: '2 days ago', time: '07:00 AM', session: 'Legs & Core'),
+            const SizedBox(height: 14),
           ],
         ),
       ),
@@ -509,109 +386,48 @@ class _AthleteProfileSheet extends StatelessWidget {
   }
 }
 
-class _MiniStatTile extends StatelessWidget {
-  final String title;
+class _DataRow extends StatelessWidget {
+  final String label;
   final String value;
-  final IconData icon;
-  final Color color;
-
-  const _MiniStatTile({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
+  const _DataRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: AppTypography.labelAthletic.copyWith(
-                  fontSize: 9,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              Icon(icon, size: 14, color: color),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppTypography.titleMedium.copyWith(
-              fontWeight: FontWeight.w900,
-              color: cs.onSurface,
-            ),
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant)),
+        Text(value, style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 13)),
+      ],
     );
   }
 }
 
-class _SessionTile extends StatelessWidget {
+class _SimpleSessionRow extends StatelessWidget {
   final String day;
   final String time;
-  final String type;
+  final String session;
 
-  const _SessionTile({
-    required this.day,
-    required this.time,
-    required this.type,
-  });
+  const _SimpleSessionRow({required this.day, required this.time, required this.session});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: AppRadii.r8,
         border: Border.all(color: cs.outline),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.brand.withAlpha(25) : AppColors.brandContainer,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check_rounded, size: 14, color: AppColors.brand),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  type,
-                  style: AppTypography.titleMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  '$day at $time',
-                  style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
+          Text(session, style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600, fontSize: 12)),
+          Text('$day $time', style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11)),
         ],
       ),
     );

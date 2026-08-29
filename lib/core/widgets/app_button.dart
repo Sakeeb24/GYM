@@ -2,7 +2,6 @@
 // Athletic High-Energy Action Button with Physics Feedback
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
-import '../theme/app_motion.dart';
 import '../theme/app_radii.dart';
 import '../theme/app_typography.dart';
 

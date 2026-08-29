@@ -1,12 +1,11 @@
 // lib/features/settings/presentation/settings_screen.dart
-// Gym Operational Parameters & Complete Multi-Section Settings
+// Clean Gym Settings (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/business_rules/business_rules.dart';
 import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_error_state.dart';
@@ -68,7 +67,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gym operational parameters saved successfully!')),
+          const SnackBar(content: Text('Settings saved successfully!')),
         );
       }
     } catch (e) {
@@ -89,23 +88,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final isOwner = profile.role == AppRole.owner;
     final asyncSettings = ref.watch(gymSettingsProvider(profile.gymId));
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.tune_rounded, size: 22, color: isDark ? AppColors.brand : AppColors.brandDark),
-            const SizedBox(width: 10),
-            Text(
-              'GYM & APP SETTINGS',
-              style: AppTypography.labelAthletic.copyWith(
-                fontSize: 14,
-                letterSpacing: 1.2,
-                color: cs.onSurface,
-              ),
-            ),
-          ],
+        title: Text(
+          'Settings',
+          style: AppTypography.headlineLarge.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
         ),
       ),
       body: asyncSettings.when(
@@ -118,74 +109,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── 1. PROFILE SECTION ──────────────────────────────────
-                _SectionTitle(title: '01 PROFILE & ATHLETE IDENTITY'),
-                const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
                     color: cs.surface,
-                    borderRadius: AppRadii.r16,
+                    borderRadius: AppRadii.r12,
                     border: Border.all(color: cs.outline),
-                    boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
                   ),
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
                       CircleAvatar(
-                        radius: 26,
-                        backgroundColor: isDark ? AppColors.brand.withAlpha(30) : AppColors.brandContainer,
+                        radius: 22,
+                        backgroundColor: AppColors.brand.withAlpha(25),
                         child: Text(
                           (profile.fullName?.isNotEmpty == true
                                   ? profile.fullName![0]
                                   : profile.username?[0] ?? 'A')
                               .toUpperCase(),
                           style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? AppColors.brand : AppColors.brandDark,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.brand,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 14),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               profile.fullName ?? profile.username ?? 'Staff',
-                              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w900, fontSize: 16),
+                              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 15),
                             ),
                             Text(
                               '@${profile.username ?? 'user'} • ${profile.role.name.toUpperCase()}',
-                              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 12),
                             ),
-                            if (profile.phone != null)
-                              Text(
-                                profile.phone!,
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: isDark ? AppColors.brand : AppColors.brandDark,
-                                  fontSize: 11,
-                                ),
-                              ),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // ── 2. GYM SETTINGS (OPERATIONAL THRESHOLDS) ─────────────
+                // ── 2. GYM SETTINGS ─────────────────────────────────────
                 if (isOwner) ...[
-                  _SectionTitle(title: '02 GYM OPERATIONAL SETTINGS'),
+                  Text(
+                    'Gym Operations',
+                    style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+                  ),
                   const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
                       color: cs.surface,
-                      borderRadius: AppRadii.r16,
+                      borderRadius: AppRadii.r12,
                       border: Border.all(color: cs.outline),
-                      boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
                     ),
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -195,60 +177,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           keyboard: TextInputType.number,
                           hint: 'Default: 7 days',
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 12),
                         AppTextField(
                           controller: _graceMinutes,
                           label: 'QR Check-in Dedup Grace (Minutes)',
                           keyboard: TextInputType.number,
                           hint: 'Default: 5 minutes',
                         ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 16),
                         AppButton(
-                          text: _saving ? 'SAVING...' : 'SAVE PARAMETERS',
+                          text: _saving ? 'Saving...' : 'Save Parameters',
                           onPressed: _saving ? null : () => _save(profile.gymId),
                           fullWidth: true,
+                          height: 42,
                           icon: _saving
                               ? const SizedBox.square(
                                   dimension: 16,
                                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                                 )
-                              : const Icon(Icons.save_rounded, size: 18),
+                              : const Icon(Icons.save_rounded, size: 16),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                 ],
 
-                // ── 3. MEMBERSHIP SETTINGS & TIERS ───────────────────────
-                _SectionTitle(title: '03 MEMBERSHIP TIERS'),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: AppRadii.r16,
-                    border: Border.all(color: cs.outline),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: const [
-                      _TierRow(name: 'BASIC TIER', price: '₹999 / mo', features: 'Gym Access'),
-                      Divider(height: 16),
-                      _TierRow(name: 'PRO ATHLETE', price: '₹1,999 / mo', features: 'Access + Group Classes', isFeatured: true),
-                      Divider(height: 16),
-                      _TierRow(name: 'ELITE PERFORMANCE', price: '₹2,999 / mo', features: 'All Access + Personal Trainer'),
-                    ],
-                  ),
+                // ── 3. NOTIFICATIONS ────────────────────────────────────
+                Text(
+                  'Notifications & Alerts',
+                  style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 20),
-
-                // ── 4. NOTIFICATIONS ────────────────────────────────────
-                _SectionTitle(title: '04 NOTIFICATIONS & ALERTS'),
                 const SizedBox(height: 8),
                 Container(
                   decoration: BoxDecoration(
                     color: cs.surface,
-                    borderRadius: AppRadii.r16,
+                    borderRadius: AppRadii.r12,
                     border: Border.all(color: cs.outline),
                   ),
                   child: Column(
@@ -256,15 +220,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       SwitchListTile(
                         value: _whatsappAlerts,
                         onChanged: (v) => setState(() => _whatsappAlerts = v),
-                        title: Text('WhatsApp Expiry Reminders', style: AppTypography.titleMedium.copyWith(fontSize: 14)),
-                        subtitle: Text('Send automatic renewal alerts to at-risk athletes', style: AppTypography.bodySmall.copyWith(fontSize: 11)),
+                        title: Text('WhatsApp Expiry Reminders', style: AppTypography.titleMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
+                        subtitle: Text('Send automatic renewal alerts to at-risk members', style: AppTypography.bodySmall.copyWith(fontSize: 11)),
                         activeThumbColor: AppColors.brand,
                       ),
                       const Divider(height: 1),
                       SwitchListTile(
                         value: _emailAlerts,
                         onChanged: (v) => setState(() => _emailAlerts = v),
-                        title: Text('Daily Performance Digest', style: AppTypography.titleMedium.copyWith(fontSize: 14)),
+                        title: Text('Daily Performance Digest', style: AppTypography.titleMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
                         subtitle: Text('Email summary of daily check-ins and revenue', style: AppTypography.bodySmall.copyWith(fontSize: 11)),
                         activeThumbColor: AppColors.brand,
                       ),
@@ -273,54 +237,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ── 5. SECURITY & AUDIT ─────────────────────────────────
-                _SectionTitle(title: '05 SECURITY & ACCESS'),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: AppRadii.r16,
-                    border: Border.all(color: cs.outline),
-                  ),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.shield_rounded, size: 18, color: AppColors.success),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Row-Level Security Active',
-                            style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Multi-tenant database isolation enforced for ${profile.role.name.toUpperCase()}',
-                        style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // ── 6. ACCOUNT & SIGN OUT ───────────────────────────────
-                _SectionTitle(title: '06 ACCOUNT ACTIONS'),
-                const SizedBox(height: 8),
+                // ── 4. ACCOUNT & SIGN OUT ───────────────────────────────
                 AppButton(
-                  text: 'SIGN OUT OF LIFTFLOW',
+                  text: 'Sign Out of LiftFlow',
                   variant: AppButtonVariant.danger,
-                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  icon: const Icon(Icons.logout_rounded, size: 16),
                   fullWidth: true,
+                  height: 44,
                   onPressed: () => ref.read(authActionsProvider).signOut(),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 Center(
                   child: Text(
-                    'LiftFlow Fitness SaaS v1.0.0+1 • All Systems Active',
+                    'LiftFlow Fitness SaaS v1.0.0+1',
                     style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
                   ),
                 ),
@@ -335,87 +265,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           onRetry: () => ref.refresh(gymSettingsProvider(profile.gymId).future),
         ),
       ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: AppTypography.labelAthletic.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-        fontSize: 11,
-      ),
-    );
-  }
-}
-
-class _TierRow extends StatelessWidget {
-  final String name;
-  final String price;
-  final String features;
-  final bool isFeatured;
-
-  const _TierRow({
-    required this.name,
-    required this.price,
-    required this.features,
-    this.isFeatured = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  name,
-                  style: AppTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: isFeatured ? (isDark ? AppColors.brand : AppColors.brandDark) : cs.onSurface,
-                  ),
-                ),
-                if (isFeatured) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withAlpha(30),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'POPULAR',
-                      style: AppTypography.labelAthletic.copyWith(color: AppColors.brand, fontSize: 8),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            Text(features, style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11)),
-          ],
-        ),
-        Text(
-          price,
-          style: AppTypography.titleMedium.copyWith(
-            fontWeight: FontWeight.w900,
-            color: cs.onSurface,
-          ),
-        ),
-      ],
     );
   }
 }

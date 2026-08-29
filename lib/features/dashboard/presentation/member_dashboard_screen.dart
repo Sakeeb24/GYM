@@ -1,11 +1,11 @@
 // lib/features/dashboard/presentation/member_dashboard_screen.dart
-// Athlete Member Dashboard & Digital Gym Pass
+// Clean Member Gym Pass & Training Overview (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/business_rules/business_rules.dart';
 import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_shadows.dart';
+import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_button.dart';
@@ -39,7 +39,6 @@ class MemberDashboardData {
 final memberDashboardProvider = FutureProvider.family<MemberDashboardData, String>((ref, userId) async {
   final client = AppSupabase.client;
 
-  // 1. Fetch member record
   final memberRows = await client
       .from('members')
       .select('id, gym_id, member_number, full_name, status')
@@ -63,7 +62,6 @@ final memberDashboardProvider = FutureProvider.family<MemberDashboardData, Strin
   final gymId = memberRows[0]['gym_id'] as String;
   final memberNumber = memberRows[0]['member_number'] as String? ?? '—';
 
-  // 2. Fetch memberships with joined plan name
   final membershipRows = await client
       .from('memberships')
       .select('id, status, expires_at, plan_id, paused_until, canceled_at, started_at, membership_plans(name)')
@@ -100,7 +98,6 @@ final memberDashboardProvider = FutureProvider.family<MemberDashboardData, Strin
     status = computeMembershipStatus(membership, SystemClock());
   }
 
-  // 3. Fetch attendance history for streak & visits
   final attRows = await client
       .from('attendance')
       .select('check_in_at')
@@ -140,11 +137,10 @@ class MemberDashboardScreen extends ConsumerWidget {
     if (profile == null) return const AppLoadingState();
     final asyncData = ref.watch(memberDashboardProvider(profile.userId));
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final memberName = profile.fullName?.isNotEmpty == true
-        ? profile.fullName!.toUpperCase()
-        : (profile.username?.toUpperCase() ?? 'ATHLETE');
+        ? profile.fullName!
+        : (profile.username ?? 'Athlete');
 
     return Scaffold(
       body: asyncData.when(
@@ -152,105 +148,78 @@ class MemberDashboardScreen extends ConsumerWidget {
           onRefresh: () async => ref.refresh(memberDashboardProvider(profile.userId).future),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── 1. Digital Athlete Gym Pass ─────────────────────────────
-                _DigitalGymPass(
+                // ── 1. Clean Digital Gym Pass ───────────────────────────────
+                _CleanGymPass(
                   memberName: memberName,
                   memberNumber: data.memberNumber,
                   planName: data.planName,
                   status: data.membershipStatus,
                   expiresAt: data.expiresAt,
-                  isDark: isDark,
-                  onScanTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const QrCheckInScreen()),
-                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                // ── 2. Training Streak & Performance KPIs ───────────────────
+                // ── 2. Training Streak & Sessions ───────────────────────────
                 Row(
                   children: [
                     Expanded(
-                      child: _StreakStatCard(
-                        title: 'ACTIVE STREAK',
-                        value: '${data.currentStreak}',
-                        unit: 'DAYS',
+                      child: _SimpleMemberMetricCard(
+                        title: 'Current Streak',
+                        value: '${data.currentStreak} days',
+                        subtitle: 'Best: ${data.longestStreak} days',
                         icon: Icons.local_fire_department_rounded,
                         accentColor: AppColors.flameStreak,
-                        subtitle: 'Personal Best: ${data.longestStreak} days',
-                        isDark: isDark,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
-                      child: _StreakStatCard(
-                        title: 'TOTAL SESSIONS',
+                      child: _SimpleMemberMetricCard(
+                        title: 'Total Sessions',
                         value: '${data.totalVisits}',
-                        unit: 'WORKOUTS',
+                        subtitle: 'All-time workouts',
                         icon: Icons.fitness_center_rounded,
                         accentColor: AppColors.brand,
-                        subtitle: 'All-time check-ins',
-                        isDark: isDark,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // ── 3. Quick Actions ─────────────────────────────────────────
+                // ── 3. Action ────────────────────────────────────────────────
                 AppButton(
-                  text: 'SCAN GYM QR TO CHECK IN',
+                  text: 'Scan QR to Check In',
+                  height: 44,
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const QrCheckInScreen()),
                   ),
-                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
 
-                // ── 4. Recent Training Log ──────────────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'RECENT SESSIONS',
-                      style: AppTypography.labelAthletic.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 12,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    Text(
-                      '${data.recentVisits.length} recorded',
-                      style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
+                // ── 4. Recent Workouts Log ──────────────────────────────────
+                Text(
+                  'Recent Sessions',
+                  style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
                 if (data.recentVisits.isEmpty)
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: cs.surface,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: AppRadii.r8,
                       border: Border.all(color: cs.outline),
                     ),
                     child: Center(
-                      child: Column(
-                        children: [
-                          Icon(Icons.history_rounded, size: 36, color: cs.onSurfaceVariant),
-                          const SizedBox(height: 8),
-                          Text(
-                            'No workouts logged yet. Scan the gym QR to record your first workout!',
-                            textAlign: TextAlign.center,
-                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                          ),
-                        ],
+                      child: Text(
+                        'No workouts logged yet. Scan the gym QR to record your first workout!',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                       ),
                     ),
                   )
@@ -259,20 +228,46 @@ class MemberDashboardScreen extends ConsumerWidget {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: data.recentVisits.length,
-                    separatorBuilder: (ctx, i) => const SizedBox(height: 8),
+                    separatorBuilder: (ctx, i) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final visit = data.recentVisits[index];
-                      return _WorkoutLogTile(visitDate: visit);
+                      final dateStr = '${visit.year}-${visit.month.toString().padLeft(2, '0')}-${visit.day.toString().padLeft(2, '0')}';
+                      final timeStr = '${visit.hour.toString().padLeft(2, '0')}:${visit.minute.toString().padLeft(2, '0')}';
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: AppRadii.r8,
+                          border: Border.all(color: cs.outline),
+                        ),
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                          leading: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 18),
+                          title: Text(
+                            'Workout Session',
+                            style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
+                          ),
+                          subtitle: Text(
+                            '$dateStr at $timeStr',
+                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
+                          ),
+                          trailing: const AppBadge(
+                            label: 'Verified',
+                            color: AppColors.statusActive,
+                          ),
+                        ),
+                      );
                     },
                   ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
               ],
             ),
           ),
         ),
         loading: () => const AppLoadingState(),
         error: (e, _) => AppErrorState(
-          message: 'Failed to load athlete profile',
+          message: 'Failed to load member pass',
           onRetry: () => ref.refresh(memberDashboardProvider(profile.userId).future),
         ),
       ),
@@ -280,29 +275,26 @@ class MemberDashboardScreen extends ConsumerWidget {
   }
 }
 
-// ── Digital Gym Pass Card Widget ─────────────────────────────────────────────
-class _DigitalGymPass extends StatelessWidget {
+class _CleanGymPass extends StatelessWidget {
   final String memberName;
   final String memberNumber;
   final String planName;
   final MembershipStatus status;
   final DateTime? expiresAt;
-  final bool isDark;
-  final VoidCallback onScanTap;
 
-  const _DigitalGymPass({
+  const _CleanGymPass({
     required this.memberName,
     required this.memberNumber,
     required this.planName,
     required this.status,
     required this.expiresAt,
-    required this.isDark,
-    required this.onScanTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final statusColor = switch (status) {
       MembershipStatus.active => AppColors.statusActive,
       MembershipStatus.expiring => AppColors.statusExpiring,
@@ -314,93 +306,72 @@ class _DigitalGymPass extends StatelessWidget {
 
     final formattedExpiry = expiresAt != null
         ? '${expiresAt!.year}-${expiresAt!.month.toString().padLeft(2, '0')}-${expiresAt!.day.toString().padLeft(2, '0')}'
-        : 'Active Ongoing';
+        : 'Active';
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [const Color(0xFF131720), const Color(0xFF0D1016)]
-              : [Colors.white, const Color(0xFFF1F5F9)],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: cs.surface,
+        borderRadius: AppRadii.r12,
         border: Border.all(
-          color: isDark ? AppColors.brand.withAlpha(80) : AppColors.brandDark.withAlpha(60),
-          width: 1.5,
+          color: isDark ? AppColors.brand.withAlpha(60) : cs.outline,
         ),
-        boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header: Gym Logo & Status Pill
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.fitness_center_rounded, size: 20, color: AppColors.brand),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.fitness_center_rounded, size: 16, color: AppColors.brand),
+                  const SizedBox(width: 6),
                   Text(
-                    'LIFTFLOW ATHLETE PASS',
-                    style: AppTypography.labelAthletic.copyWith(
+                    'LIFTFLOW PASS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.0,
                       color: isDark ? AppColors.brand : AppColors.brandDark,
-                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
-              AppBadge(label: status.name.toUpperCase(), color: statusColor),
+              AppBadge(label: status.name, color: statusColor),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
 
-          // Athlete Full Name
           Text(
             memberName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppTypography.displaySmall.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-              color: cs.onSurface,
-            ),
+            style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 4),
-
-          // Plan Name
           Text(
-            planName.toUpperCase(),
-            style: AppTypography.labelAthletic.copyWith(
-              color: cs.onSurfaceVariant,
-              fontSize: 11,
-            ),
+            planName,
+            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 12),
           ),
-          const SizedBox(height: 20),
-          const Divider(),
           const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
 
-          // Pass metadata row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('MEMBER ID', style: AppTypography.labelSmall.copyWith(color: cs.onSurfaceVariant)),
-                  const SizedBox(height: 2),
-                  Text(memberNumber, style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w800)),
+                  Text('MEMBER ID', style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                  Text(memberNumber, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('VALID THROUGH', style: AppTypography.labelSmall.copyWith(color: cs.onSurfaceVariant)),
-                  const SizedBox(height: 2),
-                  Text(formattedExpiry, style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w800)),
+                  Text('VALID THROUGH', style: TextStyle(fontSize: 9, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                  Text(formattedExpiry, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
                 ],
               ),
             ],
@@ -411,24 +382,19 @@ class _DigitalGymPass extends StatelessWidget {
   }
 }
 
-// ── Athletic Streak / Metric Card Widget ─────────────────────────────────────
-class _StreakStatCard extends StatelessWidget {
+class _SimpleMemberMetricCard extends StatelessWidget {
   final String title;
   final String value;
-  final String unit;
+  final String subtitle;
   final IconData icon;
   final Color accentColor;
-  final String subtitle;
-  final bool isDark;
 
-  const _StreakStatCard({
+  const _SimpleMemberMetricCard({
     required this.title,
     required this.value,
-    required this.unit,
+    required this.subtitle,
     required this.icon,
     required this.accentColor,
-    required this.subtitle,
-    required this.isDark,
   });
 
   @override
@@ -438,11 +404,10 @@ class _StreakStatCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? cs.outline : cs.outlineVariant),
-        boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
+        borderRadius: AppRadii.r12,
+        border: Border.all(color: cs.outline),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -451,92 +416,22 @@ class _StreakStatCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: AppTypography.labelAthletic.copyWith(
-                  color: cs.onSurfaceVariant,
-                  fontSize: 10,
-                ),
+                style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
               ),
-              Icon(icon, color: accentColor, size: 20),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: AppTypography.metricLarge.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: cs.onSurface,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                unit,
-                style: AppTypography.labelAthletic.copyWith(
-                  color: accentColor,
-                  fontSize: 10,
-                ),
-              ),
+              Icon(icon, color: accentColor, size: 16),
             ],
           ),
           const SizedBox(height: 6),
           Text(
+            value,
+            style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w800, fontSize: 18),
+          ),
+          const SizedBox(height: 2),
+          Text(
             subtitle,
-            style: AppTypography.bodySmall.copyWith(
-              color: cs.onSurfaceVariant,
-              fontSize: 11,
-            ),
+            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 10),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Workout Log Tile Widget ──────────────────────────────────────────────────
-class _WorkoutLogTile extends StatelessWidget {
-  final DateTime visitDate;
-  const _WorkoutLogTile({required this.visitDate});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final dateStr = '${visitDate.year}-${visitDate.month.toString().padLeft(2, '0')}-${visitDate.day.toString().padLeft(2, '0')}';
-    final timeStr = '${visitDate.hour.toString().padLeft(2, '0')}:${visitDate.minute.toString().padLeft(2, '0')}';
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outline),
-        boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.success.withAlpha(20),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
-        ),
-        title: Text(
-          'Gym Training Session',
-          style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Text(
-          '$dateStr • $timeStr',
-          style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-        ),
-        trailing: AppBadge(
-          label: 'VERIFIED',
-          color: AppColors.statusActive,
-        ),
       ),
     );
   }

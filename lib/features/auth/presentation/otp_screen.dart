@@ -1,12 +1,10 @@
 // lib/features/auth/presentation/otp_screen.dart
-// Registration Step 2: Phone OTP Verification
+// Clean Registration Step 2: Phone OTP Verification (Apex Precision)
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -101,7 +99,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'PHONE VERIFICATION',
+          'VERIFY PHONE',
           style: AppTypography.labelAthletic.copyWith(
             fontSize: 13,
             letterSpacing: 1.2,
@@ -111,107 +109,72 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Step Indicator
                   const AuthStepIndicator(current: 2, total: 3),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                  // Header
                   Text(
-                    'VERIFY PHONE',
-                    style: AppTypography.displayMedium.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
+                    'Enter Verification Code',
+                    style: AppTypography.headlineLarge.copyWith(
+                      fontWeight: FontWeight.w800,
                       color: cs.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
-                    'Enter the 6-digit code sent to ${widget.phone}',
-                    style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
+                    'Step 2 of 3: We sent a 6-digit code to ${widget.phone}',
+                    style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  // Form Container
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cs.surface,
-                      borderRadius: AppRadii.r16,
-                      border: Border.all(color: cs.outline),
-                      boxShadow: isDark ? AppShadows.cardElevation : AppShadows.md,
-                    ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '02 ONE-TIME CODE (OTP)',
-                          style: AppTypography.labelAthletic.copyWith(
-                            color: cs.onSurfaceVariant,
-                            fontSize: 11,
+                  AppTextField(
+                    controller: _otp,
+                    label: '6-Digit Code',
+                    hint: '123456',
+                    keyboard: TextInputType.number,
+                    maxLength: 6,
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _countdown > 0 ? 'Resend in ${_countdown}s' : 'Didn\'t receive code?',
+                        style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                      TextButton(
+                        onPressed: _countdown == 0 ? _resend : null,
+                        style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                        child: Text(
+                          'Resend Code',
+                          style: TextStyle(
+                            color: _countdown == 0
+                                ? (isDark ? AppColors.brand : AppColors.brandDark)
+                                : cs.onSurfaceVariant.withAlpha(100),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
                           ),
                         ),
-                        const SizedBox(height: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
 
-                        // OTP Text Field
-                        AppTextField(
-                          controller: _otp,
-                          label: 'Verification Code',
-                          hint: '6-digit OTP',
-                          keyboard: TextInputType.number,
-                          maxLength: 6,
-                          suffixIcon: Icon(
-                            Icons.lock_clock_outlined,
-                            size: 20,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
+                  if (_localError != null) ...[
+                    AuthErrorBanner(message: _localError!),
+                    const SizedBox(height: 16),
+                  ],
 
-                        // Resend Countdown Row
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _countdown > 0 ? 'Resend in ${_countdown}s' : 'Didn\'t receive code?',
-                              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                            ),
-                            TextButton(
-                              onPressed: _countdown == 0 ? _resend : null,
-                              child: Text(
-                                'Resend Code',
-                                style: AppTypography.labelAthletic.copyWith(
-                                  color: _countdown == 0
-                                      ? (isDark ? AppColors.brand : AppColors.brandDark)
-                                      : cs.onSurfaceVariant.withAlpha(100),
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Error Banner
-                        if (_localError != null) ...[
-                          AuthErrorBanner(message: _localError!),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Verify & Continue Button
-                        AppButton(
-                          text: 'VERIFY & CONTINUE',
-                          onPressed: _verify,
-                          fullWidth: true,
-                          icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                        ),
-                      ],
-                    ),
+                  AppButton(
+                    text: 'Verify & Continue',
+                    onPressed: _verify,
+                    fullWidth: true,
                   ),
                 ],
               ),

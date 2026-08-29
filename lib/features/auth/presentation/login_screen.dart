@@ -1,11 +1,9 @@
 // lib/features/auth/presentation/login_screen.dart
-// Premium Athletic Login Experience — Username + Password Authentication
+// Clean, Minimal Modern Fitness Login Screen (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -64,224 +62,160 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── 1. Gym / Strength Emblem with Barbell Geometry ───
+                  const SizedBox(height: 12),
+
+                  // ── 1. Clean LiftFlow Dumbbell Logo ─────────────────
                   Center(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Geometric background lines
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDark ? AppColors.dSurfaceElevated : AppColors.lSurfaceAlt,
-                            border: Border.all(
-                              color: isDark ? AppColors.brand.withAlpha(90) : AppColors.brandDark.withAlpha(90),
-                              width: 2,
-                            ),
-                            boxShadow: isDark ? AppShadows.cyanGlow : AppShadows.sm,
-                          ),
-                        ),
-                        // Inner plate ring
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDark ? AppColors.brand.withAlpha(50) : AppColors.brandDark.withAlpha(50),
-                              width: 1.5,
-                            ),
-                          ),
-                        ),
-                        // Fitness icon
-                        Icon(
-                          Icons.fitness_center_rounded,
-                          size: 42,
-                          color: isDark ? AppColors.brand : AppColors.brandDark,
-                        ),
-                      ],
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.dSurfaceAlt : AppColors.lSurfaceAlt,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.fitness_center_rounded,
+                        size: 28,
+                        color: isDark ? AppColors.brand : AppColors.brandDark,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-                  // ── 2. Brand Typography ──────────────────────────────
+                  // ── 2. Brand Name & Subtitle ─────────────────────────
                   Center(
                     child: Text(
                       'LIFTFLOW',
                       style: AppTypography.displayLarge.copyWith(
-                        letterSpacing: 3.0,
+                        fontSize: 26,
                         fontWeight: FontWeight.w900,
+                        letterSpacing: 2.0,
                         color: cs.onSurface,
-                        fontSize: 32,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-
-                  // ── 3. Three-line Fitness Slogan ──────────────────────
+                  const SizedBox(height: 4),
                   Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.dSurfaceAlt : AppColors.lSurfaceAlt,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: cs.outline),
-                      ),
-                      child: Text(
-                        'TRAIN.  TRACK.  TRANSFORM.',
-                        style: AppTypography.labelAthletic.copyWith(
-                          color: isDark ? AppColors.brand : AppColors.brandDark,
-                          letterSpacing: 2.0,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                        ),
+                    child: Text(
+                      'Your fitness. Your progress.',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 13,
                       ),
                     ),
                   ),
                   const SizedBox(height: 32),
 
-                  // ── 4. Main Authentication Card ──────────────────────
-                  Container(
-                    decoration: BoxDecoration(
-                      color: cs.surface,
-                      borderRadius: AppRadii.r16,
-                      border: Border.all(color: cs.outline, width: 1),
-                      boxShadow: isDark ? AppShadows.cardElevation : AppShadows.md,
+                  // ── 3. Username Field ────────────────────────────────
+                  AppTextField(
+                    controller: _username,
+                    label: 'Username',
+                    keyboard: TextInputType.text,
+                    hint: 'Enter your username',
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── 4. Password Field with Eye Icon ──────────────────
+                  AppTextField(
+                    controller: _password,
+                    label: 'Password',
+                    obscure: _obscure,
+                    hint: 'Enter your password',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                        size: 20,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
                     ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // ── 5. Forgot Password Link ──────────────────────────
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please contact your gym front desk to reset your password.')),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Forgot password?',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Error Banner if present
+                  if (_localError != null) ...[
+                    AuthErrorBanner(message: _localError!),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── 6. Primary Action: SIGN IN ───────────────────────
+                  AppButton(
+                    text: _submitting ? 'Signing in...' : 'Sign In',
+                    onPressed: _submitting ? null : _submit,
+                    fullWidth: true,
+                    icon: _submitting
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── 7. Footer: Don't have an account? Create account ─
+                  Center(
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          'ATHLETE SIGN IN',
-                          style: AppTypography.labelAthletic.copyWith(
+                          "Don't have an account? ",
+                          style: AppTypography.bodySmall.copyWith(
                             color: cs.onSurfaceVariant,
-                            fontSize: 11,
-                            letterSpacing: 1.2,
+                            fontSize: 13,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Welcome back',
-                          style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Username field
-                        AppTextField(
-                          controller: _username,
-                          label: 'Username',
-                          keyboard: TextInputType.text,
-                          hint: 'Enter your username',
-                          suffixIcon: Icon(
-                            Icons.person_outline_rounded,
-                            size: 20,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Password field
-                        AppTextField(
-                          controller: _password,
-                          label: 'Password',
-                          obscure: _obscure,
-                          hint: 'Enter your password',
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                              size: 20,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            onPressed: () => setState(() => _obscure = !_obscure),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Forgot Password Link
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Contact your gym front desk to reset your password.'),
-                                ),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              'Forgot Password?',
-                              style: AppTypography.bodySmall.copyWith(
-                                color: isDark ? AppColors.brand : AppColors.brandDark,
-                                fontWeight: FontWeight.w700,
-                              ),
+                        GestureDetector(
+                          onTap: () => context.push('/register'),
+                          child: Text(
+                            'Create account',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: isDark ? AppColors.brand : AppColors.brandDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Error Banner
-                        if (_localError != null) ...[
-                          AuthErrorBanner(message: _localError!),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // Sign In Button
-                        AppButton(
-                          text: _submitting ? 'Authenticating...' : 'Sign In',
-                          onPressed: _submitting ? null : _submit,
-                          fullWidth: true,
-                          icon: _submitting
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.black,
-                                  ),
-                                )
-                              : const Icon(Icons.arrow_forward_rounded, size: 18),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // ── 5. Create Account / Register Footer ───────────────
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
-                      ),
-                      GestureDetector(
-                        onTap: () => context.push('/register'),
-                        child: Text(
-                          'Create Account',
-                          style: AppTypography.labelLarge.copyWith(
-                            color: isDark ? AppColors.brand : AppColors.brandDark,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),

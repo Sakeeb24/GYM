@@ -1,11 +1,10 @@
 // lib/features/payments/presentation/payments_screen.dart
-// Gym Revenue & Payment Transactions with Athletic Billing Cards
+// Clean Gym Revenue & Billing History (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_shadows.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_empty_state.dart';
@@ -48,19 +47,12 @@ class PaymentsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.payments_rounded, size: 22, color: isDark ? AppColors.brand : AppColors.brandDark),
-            const SizedBox(width: 10),
-            Text(
-              isMember ? 'MY PAYMENTS & INVOICES' : 'PAYMENTS & REVENUE',
-              style: AppTypography.labelAthletic.copyWith(
-                fontSize: 14,
-                letterSpacing: 1.2,
-                color: cs.onSurface,
-              ),
-            ),
-          ],
+        title: Text(
+          isMember ? 'Payments & Invoices' : 'Payments & Revenue',
+          style: AppTypography.headlineLarge.copyWith(
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
+          ),
         ),
       ),
       body: asyncPayments.when(
@@ -87,19 +79,15 @@ class PaymentsScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── 1. Revenue Performance Hero ─────────────────────
+                  // ── 1. Revenue Summary Card ─────────────────────────
                   if (!isMember) ...[
                     Container(
                       decoration: BoxDecoration(
                         color: cs.surface,
-                        borderRadius: AppRadii.r16,
-                        border: Border.all(
-                          color: isDark ? AppColors.brand.withAlpha(70) : cs.outline,
-                          width: 1.5,
-                        ),
-                        boxShadow: isDark ? AppShadows.cyanGlow : AppShadows.sm,
+                        borderRadius: AppRadii.r12,
+                        border: Border.all(color: cs.outline),
                       ),
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -107,62 +95,48 @@ class PaymentsScreen extends ConsumerWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'MONTHLY REVENUE',
-                                style: AppTypography.labelAthletic.copyWith(
+                                'Monthly Revenue',
+                                style: AppTypography.bodySmall.copyWith(
                                   color: cs.onSurfaceVariant,
-                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success.withAlpha(25),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.trending_up_rounded, color: AppColors.success, size: 14),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '↑ 12.8% THIS MONTH',
-                                      style: AppTypography.labelAthletic.copyWith(
-                                        color: AppColors.success,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                '↑ 12.8% this month',
+                                style: AppTypography.bodySmall.copyWith(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
                           Text(
                             '₹$formattedRevenue',
                             style: AppTypography.metricLarge.copyWith(
-                              color: cs.onSurface,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 38,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 32,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             'Active Gym Billing Engine',
-                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 18),
                   ],
 
                   Text(
-                    isMember ? 'PAYMENT HISTORY' : 'RECENT TRANSACTIONS',
-                    style: AppTypography.labelAthletic.copyWith(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 11,
+                    isMember ? 'Payment History' : 'Recent Transactions',
+                    style: AppTypography.titleMedium.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
                   if (payments.isEmpty)
                     const AppEmptyState(
@@ -174,7 +148,7 @@ class PaymentsScreen extends ConsumerWidget {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: payments.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 10),
+                      separatorBuilder: (context, index) => const SizedBox(height: 8),
                       itemBuilder: (c, i) {
                         final p = payments[i];
                         final status = p['status'] as String? ?? 'succeeded';
@@ -195,69 +169,52 @@ class PaymentsScreen extends ConsumerWidget {
                         return Container(
                           decoration: BoxDecoration(
                             color: cs.surface,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: AppRadii.r8,
                             border: Border.all(color: cs.outline),
-                            boxShadow: isDark ? AppShadows.cardElevation : AppShadows.sm,
                           ),
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: color.withAlpha(25),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Icon(Icons.credit_card_rounded, color: color, size: 18),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'ATHLETE MEMBERSHIP',
-                                            style: AppTypography.labelAthletic.copyWith(
-                                              color: cs.onSurfaceVariant,
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                          Text(
-                                            p['provider_reference'] as String? ?? 'PRO PLAN SUBSCRIPTION',
-                                            style: AppTypography.titleMedium.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  AppBadge(label: status.toUpperCase(), color: color),
-                                ],
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: color.withAlpha(20),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.credit_card_rounded, color: color, size: 16),
                               ),
-                              const SizedBox(height: 12),
-                              const Divider(),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      p['provider_reference'] as String? ?? 'Pro Membership Subscription',
+                                      style: AppTypography.titleMedium.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Date: $dateStr',
+                                      style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Text(
-                                    'Date: $dateStr',
-                                    style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
-                                  ),
                                   Text(
                                     '\$$amount $currency',
-                                    style: AppTypography.titleMedium.copyWith(
-                                      fontWeight: FontWeight.w900,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
                                       color: isDark ? AppColors.brand : AppColors.brandDark,
                                     ),
                                   ),
+                                  const SizedBox(height: 2),
+                                  AppBadge(label: status, color: color),
                                 ],
                               ),
                             ],
@@ -287,10 +244,10 @@ class PaymentsScreen extends ConsumerWidget {
               onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Refunds are processed securely via the Stripe portal.')),
               ),
-              icon: const Icon(Icons.receipt_long_rounded),
-              label: Text(
-                'STRIPE PORTAL',
-                style: AppTypography.labelAthletic.copyWith(color: Colors.black),
+              icon: const Icon(Icons.receipt_long_rounded, size: 18),
+              label: const Text(
+                'Stripe Portal',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
               ),
             )
           : null,

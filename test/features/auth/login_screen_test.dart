@@ -24,10 +24,11 @@ void main() {
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Email'), findsNothing);
-    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('LIFTFLOW'), findsOneWidget);
+    expect(find.text('Your fitness. Your progress.'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
-    expect(find.text('Create Account'), findsOneWidget);
-    expect(find.text('Forgot Password?'), findsOneWidget);
+    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Forgot password?'), findsOneWidget);
   });
 
   testWidgets('LoginScreen shows error when fields are empty on sign-in', (tester) async {
@@ -44,7 +45,7 @@ void main() {
     await tester.pumpWidget(buildLoginSubject());
     await tester.pumpAndSettle();
 
-    final createBtn = find.text('Create Account');
+    final createBtn = find.text('Create account');
     await tester.ensureVisible(createBtn);
     await tester.tap(createBtn);
     await tester.pumpAndSettle();
