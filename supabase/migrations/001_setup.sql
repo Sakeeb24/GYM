@@ -27,11 +27,13 @@ create trigger set_updated before update on gyms
   for each row execute function trigger_set_updated();
 
 -- Helper used by auth hook + RLS to read the caller's gym from the JWT claim.
--- The Supabase `auth` schema is managed by Supabase; we add a helper here.
-create function auth.gym_id()
+-- Resides in public schema (application-owned) to satisfy Supabase security model.
+create or replace function public.gym_id()
 returns uuid
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select nullif(current_setting('request.jwt.claim.gym_id', true), '')::uuid;
 $$;

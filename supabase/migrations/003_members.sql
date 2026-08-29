@@ -27,8 +27,8 @@ alter table members enable row level security;
 -- Tenant isolation: only rows in the caller's gym.
 create policy "members tenant isolation"
   on members for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 -- A member may select their own row (by profile link) even if claim is unset.
 create policy "members select own via profile"

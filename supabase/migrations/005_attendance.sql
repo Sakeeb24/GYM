@@ -30,11 +30,11 @@ create index idx_streaks_gym on streaks(gym_id);
 alter table attendance enable row level security;
 create policy "attendance tenant isolation"
   on attendance for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 alter table streaks enable row level security;
 create policy "streaks tenant isolation"
   on streaks for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());

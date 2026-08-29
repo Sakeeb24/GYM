@@ -78,16 +78,16 @@ create trigger set_updated before update on add_on_orders for each row execute f
 -- RLS: all tenant-scoped, denied for client writes except via edge functions (service_role).
 alter table renewal_orders enable row level security;
 create policy "renewal_orders tenant isolation" on renewal_orders for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table payments enable row level security;
 create policy "payments tenant isolation" on payments for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table add_ons enable row level security;
 create policy "add_ons tenant isolation" on add_ons for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table add_on_orders enable row level security;
 create policy "add_on_orders tenant isolation" on add_on_orders for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());

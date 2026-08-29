@@ -64,8 +64,8 @@ alter table memberships enable row level security;
 -- Reuse the gym-scoped helper view: we expose status via a SQL function, not a column.
 create policy "memberships tenant isolation"
   on memberships for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 create trigger set_updated before update on memberships
   for each row execute function trigger_set_updated();

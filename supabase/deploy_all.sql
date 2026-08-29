@@ -30,11 +30,13 @@ create trigger set_updated before update on gyms
   for each row execute function trigger_set_updated();
 
 -- Helper used by auth hook + RLS to read the caller's gym from the JWT claim.
--- The Supabase `auth` schema is managed by Supabase; we add a helper here.
-create function auth.gym_id()
+-- Resides in public schema (application-owned) to satisfy Supabase security model.
+create or replace function public.gym_id()
 returns uuid
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select nullif(current_setting('request.jwt.claim.gym_id', true), '')::uuid;
 $$;
@@ -115,7 +117,7 @@ create policy "profiles select own or gym-scoped"
   on profiles for select
   using (
     user_id = auth.uid()
-    or gym_id = auth.gym_id()
+    or gym_id = public.gym_id()
   );
 
 -- Profiles are created only by the auth trigger / edge functions (service_role).
@@ -170,8 +172,8 @@ alter table members enable row level security;
 -- Tenant isolation: only rows in the caller's gym.
 create policy "members tenant isolation"
   on members for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 -- A member may select their own row (by profile link) even if claim is unset.
 create policy "members select own via profile"
@@ -251,8 +253,8 @@ alter table memberships enable row level security;
 -- Reuse the gym-scoped helper view: we expose status via a SQL function, not a column.
 create policy "memberships tenant isolation"
   on memberships for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 create trigger set_updated before update on memberships
   for each row execute function trigger_set_updated();
@@ -293,14 +295,14 @@ create index idx_streaks_gym on streaks(gym_id);
 alter table attendance enable row level security;
 create policy "attendance tenant isolation"
   on attendance for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 alter table streaks enable row level security;
 create policy "streaks tenant isolation"
   on streaks for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 
 -- ==========================================
@@ -335,8 +337,8 @@ create index idx_no_show_gym_assigned on no_show_cases(gym_id, assigned_to);
 alter table no_show_cases enable row level security;
 create policy "no_show tenant isolation"
   on no_show_cases for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 
 -- ==========================================
@@ -371,8 +373,8 @@ create index idx_followups_case on follow_ups(no_show_case_id);
 alter table follow_ups enable row level security;
 create policy "follow_ups tenant isolation"
   on follow_ups for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 create trigger set_updated before update on follow_ups
   for each row execute function trigger_set_updated();
@@ -461,19 +463,19 @@ create trigger set_updated before update on add_on_orders for each row execute f
 -- RLS: all tenant-scoped, denied for client writes except via edge functions (service_role).
 alter table renewal_orders enable row level security;
 create policy "renewal_orders tenant isolation" on renewal_orders for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table payments enable row level security;
 create policy "payments tenant isolation" on payments for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table add_ons enable row level security;
 create policy "add_ons tenant isolation" on add_ons for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table add_on_orders enable row level security;
 create policy "add_on_orders tenant isolation" on add_on_orders for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 
 -- ==========================================
@@ -514,12 +516,12 @@ create index idx_comm_prefs_member on communication_preferences(member_id);
 
 alter table notifications enable row level security;
 create policy "notifications tenant isolation" on notifications for all
-  using (gym_id = auth.gym_id()) with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id()) with check (gym_id = public.gym_id());
 
 alter table communication_preferences enable row level security;
 create policy "comm_prefs tenant isolation" on communication_preferences for all
-  using (exists (select 1 from members m where m.id = communication_preferences.member_id and m.gym_id = auth.gym_id()))
-  with check (exists (select 1 from members m where m.id = communication_preferences.member_id and m.gym_id = auth.gym_id()));
+  using (exists (select 1 from members m where m.id = communication_preferences.member_id and m.gym_id = public.gym_id()))
+  with check (exists (select 1 from members m where m.id = communication_preferences.member_id and m.gym_id = public.gym_id()));
 
 create trigger set_updated before update on notifications for each row execute function trigger_set_updated();
 create trigger set_updated before update on communication_preferences for each row execute function trigger_set_updated();
@@ -551,7 +553,7 @@ create index idx_audit_action on audit_logs(action);
 -- role can SELECT its own gym's audit (read-only) for transparency.
 alter table audit_logs enable row level security;
 create policy "audit_logs tenant isolation" on audit_logs for select
-  using (gym_id = auth.gym_id() or gym_id is null);
+  using (gym_id = public.gym_id() or gym_id is null);
 create policy "audit_logs no client write" on audit_logs for insert with check (false);
 create policy "audit_logs no client update" on audit_logs for update using (false);
 create policy "audit_logs no client delete" on audit_logs for delete using (false);

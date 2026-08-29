@@ -27,5 +27,5 @@ create index idx_no_show_gym_assigned on no_show_cases(gym_id, assigned_to);
 alter table no_show_cases enable row level security;
 create policy "no_show tenant isolation"
   on no_show_cases for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());

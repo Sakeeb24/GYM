@@ -51,7 +51,7 @@ create policy "profiles select own or gym-scoped"
   on profiles for select
   using (
     user_id = auth.uid()
-    or gym_id = auth.gym_id()
+    or gym_id = public.gym_id()
   );
 
 -- Profiles are created only by the auth trigger / edge functions (service_role).

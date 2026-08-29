@@ -21,7 +21,7 @@ create index idx_audit_action on audit_logs(action);
 -- role can SELECT its own gym's audit (read-only) for transparency.
 alter table audit_logs enable row level security;
 create policy "audit_logs tenant isolation" on audit_logs for select
-  using (gym_id = auth.gym_id() or gym_id is null);
+  using (gym_id = public.gym_id() or gym_id is null);
 create policy "audit_logs no client write" on audit_logs for insert with check (false);
 create policy "audit_logs no client update" on audit_logs for update using (false);
 create policy "audit_logs no client delete" on audit_logs for delete using (false);

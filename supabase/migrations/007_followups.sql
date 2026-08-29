@@ -27,8 +27,8 @@ create index idx_followups_case on follow_ups(no_show_case_id);
 alter table follow_ups enable row level security;
 create policy "follow_ups tenant isolation"
   on follow_ups for all
-  using (gym_id = auth.gym_id())
-  with check (gym_id = auth.gym_id());
+  using (gym_id = public.gym_id())
+  with check (gym_id = public.gym_id());
 
 create trigger set_updated before update on follow_ups
   for each row execute function trigger_set_updated();
