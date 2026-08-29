@@ -1,6 +1,8 @@
-// lib/features/qr_checkin/presentation/qr_checkin_screen.dart
+﻿// lib/features/qr_checkin/presentation/qr_checkin_screen.dart
 import 'package:flutter/material.dart';
 import 'package:liftflow/config/env.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_typography.dart';
 import '../attendance_repository.dart';
 import '../attendance_result_view.dart';
 import '../qr_scanner_view.dart';
@@ -35,31 +37,63 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cs = Theme.of(context).colorScheme;
+
     if (!_scanning) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Check-in')),
+        appBar: AppBar(
+          title: Text(
+            'CHECK-IN RESULT',
+            style: AppTypography.labelAthletic.copyWith(
+              fontSize: 14,
+              letterSpacing: 1.2,
+            ),
+          ),
+          centerTitle: true,
+        ),
         body: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           child: AttendanceResultView(outcome: _outcome, onDismiss: _reset),
         ),
       );
     }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan guest QR')),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Icon(Icons.qr_code_scanner_rounded, size: 22, color: isDark ? AppColors.brand : AppColors.brandDark),
+            const SizedBox(width: 10),
+            Text(
+              'SCAN GYM QR PASS',
+              style: AppTypography.labelAthletic.copyWith(
+                fontSize: 14,
+                letterSpacing: 1.2,
+                color: cs.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          Expanded(
-            child: QrScannerView(
-              key: const ValueKey('scanner'),
-              onDetected: _onDetect,
-              simulating: _devSimulate,
+        child: Column(
+          children: [
+            Expanded(
+              child: QrScannerView(
+                key: const ValueKey('scanner'),
+                onDetected: _onDetect,
+                simulating: _devSimulate,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text('Point the camera at the member QR code',
-              style: Theme.of(context).textTheme.bodySmall),
-        ]),
+            const SizedBox(height: 16),
+            Text(
+              'Position the camera over the gym entry QR code',
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }

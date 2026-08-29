@@ -1,11 +1,9 @@
-// lib/features/qr_checkin/qr_scanner_view.dart
-// Camera-agnostic QR scan surface. The default implementation is a dev
-// simulator so the whole UI flow is testable without a device. On a real
-// device, swap the body for `MobileScanner(onDetect: ...)` behind this same
-// interface — the security-critical logic lives server-side (recordAttendance
-// edge function with HMAC verification).
+﻿// lib/features/qr_checkin/qr_scanner_view.dart
+// Athletic Precision QR Scanner HUD Surface
 import 'package:flutter/material.dart';
-import 'package:liftflow/config/env.dart';
+import '../../config/env.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
 import '../../core/widgets/app_button.dart';
 
 typedef OnQrDetected = void Function(String payload);
@@ -18,31 +16,79 @@ class QrScannerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black87,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant.withAlpha(64)),
+        color: const Color(0xFF07090C),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.brand.withAlpha(50), width: 1.5),
       ),
-      child: Stack(children: [
-        if (simulating)
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: AppButton(
-                text: 'Simulate scan (dev)',
-                variant: AppButtonVariant.outlined,
-                onPressed: () => _simulate(),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Background grid / target effect
+          Center(
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.brand.withAlpha(80), width: 1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Stack(
+                children: [
+                  // Corner brackets
+                  Positioned(top: 0, left: 0, child: _CornerBracket(isTop: true, isLeft: true)),
+                  Positioned(top: 0, right: 0, child: _CornerBracket(isTop: true, isLeft: false)),
+                  Positioned(bottom: 0, left: 0, child: _CornerBracket(isTop: false, isLeft: true)),
+                  Positioned(bottom: 0, right: 0, child: _CornerBracket(isTop: false, isLeft: false)),
+                  const Center(
+                    child: Icon(Icons.qr_code_scanner_rounded, size: 72, color: AppColors.brandGlow),
+                  ),
+                ],
               ),
             ),
           ),
-        const Align(
-          alignment: Alignment.center,
-          child: Icon(Icons.qr_code_scanner, size: 80, color: Colors.white24),
-        ),
-      ]),
+
+          // Top guidance text
+          Positioned(
+            top: 24,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(180),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.brand.withAlpha(60)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.center_focus_strong_rounded, color: AppColors.brand, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'ALIGN QR CODE WITHIN FRAME',
+                    style: AppTypography.labelAthletic.copyWith(
+                      color: AppColors.brand,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Simulation Button (Dev only)
+          if (simulating)
+            Positioned(
+              bottom: 20,
+              child: AppButton(
+                text: 'SIMULATE SCAN (DEV)',
+                variant: AppButtonVariant.outlined,
+                onPressed: _simulate,
+                icon: const Icon(Icons.bolt, size: 18),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -53,3 +99,25 @@ class QrScannerView extends StatelessWidget {
   }
 }
 
+class _CornerBracket extends StatelessWidget {
+  final bool isTop;
+  final bool isLeft;
+
+  const _CornerBracket({required this.isTop, required this.isLeft});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        border: Border(
+          top: isTop ? const BorderSide(color: AppColors.brand, width: 3) : BorderSide.none,
+          bottom: !isTop ? const BorderSide(color: AppColors.brand, width: 3) : BorderSide.none,
+          left: isLeft ? const BorderSide(color: AppColors.brand, width: 3) : BorderSide.none,
+          right: !isLeft ? const BorderSide(color: AppColors.brand, width: 3) : BorderSide.none,
+        ),
+      ),
+    );
+  }
+}

@@ -44,7 +44,9 @@ void main() {
     await tester.pumpWidget(buildLoginSubject());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Create Account'));
+    final createBtn = find.text('Create Account');
+    await tester.ensureVisible(createBtn);
+    await tester.tap(createBtn);
     await tester.pumpAndSettle();
 
     expect(find.text('Register'), findsOneWidget);

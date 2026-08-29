@@ -1,4 +1,5 @@
-// lib/core/theme/app_theme.dart
+﻿// lib/core/theme/app_theme.dart
+// LiftFlow Athletic Material 3 Theme
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'app_typography.dart';
@@ -16,20 +17,21 @@ class AppTheme {
     final surfaceAlt = isDark ? AppColors.dSurfaceAlt : AppColors.lSurfaceAlt;
     final onSurface = isDark ? AppColors.dTextPrimary : AppColors.lTextPrimary;
     final onSurfaceVariant = isDark ? AppColors.dTextSecondary : AppColors.lTextSecondary;
+    final borderColor = isDark ? AppColors.dBorder : AppColors.lBorder;
 
     final cs = ColorScheme.fromSeed(
       seedColor: AppColors.brand,
       brightness: brightness,
       primary: AppColors.brand,
-      onPrimary: Colors.white,
+      onPrimary: Colors.black,
       primaryContainer: AppColors.brandContainer,
       surface: surface,
       onSurface: onSurface,
       onSurfaceVariant: onSurfaceVariant,
       error: AppColors.error,
       errorContainer: AppColors.errorContainer,
-      outline: isDark ? AppColors.dBorder : AppColors.lBorder,
-      outlineVariant: isDark ? AppColors.dBorder : AppColors.lBorder,
+      outline: borderColor,
+      outlineVariant: borderColor,
     );
 
     return ThemeData(
@@ -40,6 +42,7 @@ class AppTheme {
       textTheme: TextTheme(
         displayLarge: AppTypography.displayLarge,
         displayMedium: AppTypography.displayMedium,
+        displaySmall: AppTypography.displaySmall,
         headlineLarge: AppTypography.headlineLarge,
         headlineMedium: AppTypography.headlineMedium,
         headlineSmall: AppTypography.headlineSmall,
@@ -54,54 +57,88 @@ class AppTheme {
         backgroundColor: surface,
         foregroundColor: onSurface,
         elevation: 0,
-        scrolledUnderElevation: 0.5,
+        scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: AppTypography.headlineLarge,
+        titleTextStyle: AppTypography.headlineLarge.copyWith(color: onSurface),
+        iconTheme: IconThemeData(color: onSurface),
       ),
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
-        shadowColor: isDark ? AppColors.dBorder : AppColors.lBorder,
+        shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: AppRadii.r16,
-          side: BorderSide(color: isDark ? AppColors.dBorder : AppColors.lBorder, width: 1),
+          borderRadius: AppRadii.r12,
+          side: BorderSide(color: borderColor, width: 1),
         ),
         margin: EdgeInsets.zero,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceAlt,
-        border: OutlineInputBorder(borderRadius: AppRadii.r8, borderSide: BorderSide.none),
+        border: OutlineInputBorder(
+          borderRadius: AppRadii.r8,
+          borderSide: BorderSide(color: borderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: AppRadii.r8,
+          borderSide: BorderSide(color: borderColor),
+        ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppRadii.r8,
-          borderSide: BorderSide(color: AppColors.brand, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: AppRadii.r8,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: TextStyle(color: onSurfaceVariant, fontSize: 14),
+        labelStyle: TextStyle(color: onSurfaceVariant, fontSize: 14, fontWeight: FontWeight.w500),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.brand,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(0, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          foregroundColor: Colors.black,
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: AppRadii.r8),
-          textStyle: AppTypography.labelLarge,
+          textStyle: AppTypography.labelLarge.copyWith(color: Colors.black, fontWeight: FontWeight.w800),
           elevation: 0,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.brand,
-          minimumSize: const Size(0, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          side: BorderSide(color: isDark ? AppColors.dBorder : AppColors.lBorder, width: 1),
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          side: const BorderSide(color: AppColors.brand, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: AppRadii.r8),
-          textStyle: AppTypography.labelLarge,
+          textStyle: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w800),
         ),
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: surface,
+        elevation: 0,
+        indicatorColor: isDark ? AppColors.brand.withAlpha(40) : AppColors.brand.withAlpha(50),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final isSelected = states.contains(WidgetState.selected);
+          return AppTypography.labelSmall.copyWith(
+            color: isSelected ? (isDark ? AppColors.brand : AppColors.brandDark) : onSurfaceVariant,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final isSelected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: isSelected ? (isDark ? AppColors.brand : AppColors.brandDark) : onSurfaceVariant,
+            size: 22,
+          );
+        }),
+      ),
       dividerTheme: DividerThemeData(
-        color: isDark ? AppColors.dBorder : AppColors.lBorder, thickness: 1,
+        color: borderColor,
+        thickness: 1,
+        space: 1,
       ),
     );
   }

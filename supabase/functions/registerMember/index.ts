@@ -1,16 +1,20 @@
 ﻿import { createAdminClient, jsonOk, jsonError } from '../_shared/supabaseServer.ts';
 
-// registerMember — public endpoint (no auth required; user does not yet exist).
+// registerMember — public endpoint for gym member self-onboarding.
+// Ensures strict atomic linking: auth.users -> profiles -> members.profile_id
+//
 // Accepts:
 //   { full_name, phone, otp_token, username, password }
 //
-// Steps (all server-side, service_role):
-//   1. Verify phone OTP token via Supabase Auth.
-//   2. Look up members table by phone to resolve gym_id.
-//   3. Check username uniqueness.
-//   4. Create auth.users with synthetic email ({username}@liftflow.internal).
-//   5. Update profiles row (created by trigger) with username, phone_verified, full_name, phone.
-//   6. Return success.
+// Steps (all server-side with service_role):
+//   1. Verify phone OTP token via Supabase Auth Admin.
+//   2. Look up members table by phone to resolve gym_id and pre-enrolled member.
+//   3. Prevent duplicate account registration if member is already claimed.
+//   4. Check username uniqueness.
+//   5. Create auth.users with synthetic email ({username}@liftflow.internal).
+//   6. Update profiles with username, phone_verified, full_name, phone.
+//   7. Link pre-enrolled member: members.profile_id = newUserId.
+//   8. Clean up intermediate OTP temporary user (if created).
 
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
 
@@ -41,106 +45,138 @@ Deno.serve(async (req: Request) => {
     const body: RegisterReq = await req.json();
     const { full_name, phone, otp_token, username, password } = body;
 
-    // --- Validate inputs ---
+    // --- 1. Validate inputs ---
     if (!full_name?.trim() || full_name.trim().length < 2) {
-      return jsonError('full_name must be at least 2 characters', 400);
+      return jsonError('Full name must be at least 2 characters', 400);
     }
-    if (!phone?.trim()) return jsonError('phone is required', 400);
-    if (!otp_token?.trim()) return jsonError('otp_token is required', 400);
-    if (!username || !USERNAME_RE.test(username)) {
-      return jsonError('username must be 3-30 lowercase alphanumeric characters or underscores', 400);
+    if (!phone?.trim()) return jsonError('Phone number is required', 400);
+    if (!otp_token?.trim()) return jsonError('OTP verification code is required', 400);
+    if (!username || !USERNAME_RE.test(username.toLowerCase().trim())) {
+      return jsonError('Username must be 3-30 lowercase alphanumeric characters or underscores', 400);
     }
     if (!password || password.length < 8) {
-      return jsonError('password must be at least 8 characters', 400);
+      return jsonError('Password must be at least 8 characters', 400);
     }
 
+    const cleanUsername = username.toLowerCase().trim();
+    const cleanPhone = phone.trim();
     const admin = createAdminClient();
 
-    // --- 1. Verify the phone OTP ---
+    // --- 2. Verify the phone OTP ---
     const { data: otpData, error: otpErr } = await admin.auth.verifyOtp({
-      phone,
-      token: otp_token,
+      phone: cleanPhone,
+      token: otp_token.trim(),
       type: 'sms',
     });
     if (otpErr || !otpData?.user) {
-      return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid token'}`, 400);
+      return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid or expired token'}`, 400);
     }
-    // otpData.user is the temporary Supabase auth user created by the OTP step.
-    // We will NOT use this user — we create a fresh one with the synthetic email.
-    // Sign out the OTP session immediately.
-    const otpUserId = otpData.user.id;
+    const tempOtpUserId = otpData.user.id;
 
-    // --- 2. Resolve gym_id from members table by phone number ---
-    const { data: memberRow } = await admin
+    // --- 3. Resolve member record from members table by phone ---
+    const { data: memberRow, error: memberErr } = await admin
       .from('members')
-      .select('gym_id')
-      .eq('phone', phone)
+      .select('id, gym_id, profile_id, full_name')
+      .eq('phone', cleanPhone)
       .maybeSingle();
 
-    if (!memberRow) {
+    if (memberErr || !memberRow) {
       return jsonError(
-        'No gym account found for this phone number. Please contact your gym to be added first.',
+        'No gym membership found for this phone number. Please contact your gym front desk to enroll first.',
         404,
       );
     }
-    const gymId: string = (memberRow as { gym_id: string }).gym_id;
 
-    // --- 3. Check username uniqueness ---
-    const { data: existingUsername } = await admin
-      .from('profiles')
-      .select('user_id')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (existingUsername) {
-      return jsonError('Username is already taken. Please choose a different one.', 409);
+    // --- 4. Prevent duplicate registration if already claimed ---
+    if (memberRow.profile_id != null) {
+      return jsonError('This gym member account has already been registered. Please sign in instead.', 409);
     }
 
-    // --- 4. Create auth.users with synthetic email ---
-    const syntheticEmail = `${username}@liftflow.internal`;
+    const gymId: string = memberRow.gym_id;
+    const memberId: string = memberRow.id;
+
+    // --- 5. Check username uniqueness in profiles ---
+    const { data: existingProfile } = await admin
+      .from('profiles')
+      .select('user_id')
+      .eq('username', cleanUsername)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return jsonError('Username is already taken. Please choose another username.', 409);
+    }
+
+    // --- 6. Create permanent auth.users with synthetic email & tenant metadata ---
+    const syntheticEmail = `${cleanUsername}@liftflow.internal`;
     const { data: signUpData, error: signUpErr } = await admin.auth.admin.createUser({
       email: syntheticEmail,
       password,
-      phone,
+      phone: cleanPhone,
       app_metadata: { gym_id: gymId, role: 'member' },
       user_metadata: { full_name: full_name.trim() },
-      email_confirm: true, // skip email verification — we verified via phone OTP
+      email_confirm: true, // skip email confirmation — verified by phone OTP
     });
 
     if (signUpErr || !signUpData?.user) {
-      return jsonError(`Registration failed: ${signUpErr?.message ?? 'unknown error'}`, 500);
+      return jsonError(`Account creation failed: ${signUpErr?.message ?? 'unknown error'}`, 500);
     }
 
     const newUserId = signUpData.user.id;
 
-    // --- 5. Update profile (created by trigger) with username + phone_verified ---
-    // Retry up to 3× since the trigger fires asynchronously.
-    let profileUpdated = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await new Promise((r) => setTimeout(r, 300));
-      const { error: updateErr } = await admin
-        .from('profiles')
-        .update({
-          username,
-          phone_verified: true,
-          full_name: full_name.trim(),
-          phone,
-        })
-        .eq('user_id', newUserId);
-      if (!updateErr) { profileUpdated = true; break; }
+    // --- 7. Update/Upsert profile with username + phone_verified ---
+    const { error: profileErr } = await admin
+      .from('profiles')
+      .upsert({
+        user_id: newUserId,
+        gym_id: gymId,
+        username: cleanUsername,
+        full_name: full_name.trim(),
+        phone: cleanPhone,
+        email: syntheticEmail,
+        role: 'member',
+        status: 'active',
+        phone_verified: true,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (profileErr) {
+      console.warn(`registerMember: profile upsert warning: ${profileErr.message}`);
     }
 
-    if (!profileUpdated) {
-      // Non-fatal: auth user created successfully; profile will be updated on next sign-in.
-      console.warn(`registerMember: profile update deferred for user ${newUserId}`);
+    // --- 8. Link the member record: members.profile_id = newUserId ---
+    const { error: linkErr } = await admin
+      .from('members')
+      .update({
+        profile_id: newUserId,
+        full_name: full_name.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memberId);
+
+    if (linkErr) {
+      return jsonError(`Failed to link member record: ${linkErr.message}`, 500);
     }
 
-    // --- 6. Clean up the temporary OTP auth user (if different from new user) ---
-    if (otpUserId !== newUserId) {
-      await admin.auth.admin.deleteUser(otpUserId).catch(() => {});
+    // --- 9. Clean up temporary OTP user (if different from new user) ---
+    if (tempOtpUserId && tempOtpUserId !== newUserId) {
+      await admin.auth.admin.deleteUser(tempOtpUserId).catch(() => {});
     }
 
-    return jsonOk({ message: 'Registration successful. You can now sign in.' }, 201);
+    // --- 10. Write audit log ---
+    await admin.from('audit_logs').insert({
+      gym_id: gymId,
+      actor_user_id: newUserId,
+      action: 'member.registered',
+      entity: 'member',
+      entity_id: memberId,
+      detail: { username: cleanUsername, phone: cleanPhone },
+    }).catch(() => {});
+
+    return jsonOk({
+      message: 'Registration successful. You can now sign in with your username and password.',
+      user_id: newUserId,
+      member_id: memberId,
+    }, 201);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonError(`registerMember error: ${msg}`, 500);

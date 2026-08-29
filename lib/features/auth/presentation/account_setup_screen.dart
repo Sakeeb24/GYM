@@ -1,4 +1,5 @@
-// lib/features/auth/presentation/account_setup_screen.dart
+﻿// lib/features/auth/presentation/account_setup_screen.dart
+// Athletic Registration Step 3 — Credentials & Profile Creation
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_shadows.dart';
 import '../auth_notifier.dart';
 import 'auth_widgets.dart';
 
@@ -56,7 +58,10 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     final trimmed = value.trim().toLowerCase();
 
     if (trimmed.isEmpty) {
-      setState(() { _usernameError = null; _usernameAvailable = false; });
+      setState(() {
+        _usernameError = null;
+        _usernameAvailable = false;
+      });
       return;
     }
     if (!_usernameRe.hasMatch(trimmed)) {
@@ -66,9 +71,13 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       });
       return;
     }
-    setState(() { _usernameError = null; _checkingUsername = true; _usernameAvailable = false; });
+    setState(() {
+      _usernameError = null;
+      _checkingUsername = true;
+      _usernameAvailable = false;
+    });
 
-    _debounce = Timer(const Duration(milliseconds: 500), () async {
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
       final actions = ref.read(authActionsProvider);
       try {
         final taken = await actions.isUsernameTaken(trimmed);
@@ -102,12 +111,19 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       return;
     }
     final passErr = _validatePassword(password);
-    if (passErr != null) { setState(() => _error = passErr); return; }
+    if (passErr != null) {
+      setState(() => _error = passErr);
+      return;
+    }
     if (password != confirmPassword) {
-      setState(() => _error = 'Passwords do not match.'); return;
+      setState(() => _error = 'Passwords do not match.');
+      return;
     }
 
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     try {
       final actions = ref.read(authActionsProvider);
@@ -124,7 +140,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Account created! Please sign in with your new username.'),
+            content: Text('Account created! Sign in with your new credentials.'),
             duration: Duration(seconds: 4),
           ),
         );
@@ -141,11 +157,15 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget usernameStatus;
     if (_checkingUsername) {
-      usernameStatus = const SizedBox(width: 16, height: 16,
-          child: CircularProgressIndicator(strokeWidth: 2));
+      usernameStatus = const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
     } else if (_usernameAvailable) {
       usernameStatus = const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20);
     } else {
@@ -155,99 +175,133 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Set Up Account'),
+        title: Text(
+          'ACCOUNT CREATION',
+          style: AppTypography.labelAthletic.copyWith(
+            color: isDark ? AppColors.brand : AppColors.brandDark,
+            fontSize: 12,
+          ),
+        ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AuthStepIndicator(current: 3, total: 3),
-              const SizedBox(height: 28),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AuthStepIndicator(current: 3, total: 3),
+                const SizedBox(height: 28),
 
-              Text('Choose Credentials', style: AppTypography.headlineLarge),
-              const SizedBox(height: 6),
-              Text(
-                'Set your username and password. You will use these to sign in.',
-                style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 28),
-
-              // Username
-              AppTextField(
-                controller: _username,
-                label: 'Username',
-                keyboard: TextInputType.text,
-                hint: 'e.g. alex_johnson',
-                errorText: _usernameError,
-                onChanged: _onUsernameChanged,
-                suffixIcon: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: usernameStatus,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Lowercase letters, numbers, underscores. 3-30 characters.',
-                style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 16),
-
-              // Password
-              AppTextField(
-                controller: _password,
-                label: 'Password',
-                obscure: _obscurePassword,
-                hint: 'Min. 8 chars with letter and number',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                    size: 20, color: cs.onSurfaceVariant,
+                Text(
+                  'CREATE YOUR ACCOUNT',
+                  style: AppTypography.displaySmall.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.3,
                   ),
-                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                 ),
-              ),
-              const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose your unique athlete username and set a secure password.',
+                  style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 28),
 
-              // Confirm Password
-              AppTextField(
-                controller: _confirmPassword,
-                label: 'Confirm Password',
-                obscure: _obscureConfirm,
-                hint: 'Re-enter your password',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                    size: 20, color: cs.onSurfaceVariant,
+                // Credentials Container Card
+                Container(
+                  decoration: BoxDecoration(
+                    color: cs.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cs.outline, width: 1),
+                    boxShadow: isDark ? AppShadows.cardElevation : AppShadows.md,
                   ),
-                  onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                ),
-              ),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Username
+                      AppTextField(
+                        controller: _username,
+                        label: 'Username',
+                        keyboard: TextInputType.text,
+                        hint: 'e.g. alex_lift',
+                        errorText: _usernameError,
+                        onChanged: _onUsernameChanged,
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: usernameStatus,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Lowercase letters, numbers, underscores (3-30 chars).',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
 
-              if (_error != null) ...[
-                const SizedBox(height: 16),
-                AuthErrorBanner(message: _error!),
+                      // Password
+                      AppTextField(
+                        controller: _password,
+                        label: 'Password',
+                        obscure: _obscurePassword,
+                        hint: 'Min. 8 characters with letter and number',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            size: 20,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Confirm Password
+                      AppTextField(
+                        controller: _confirmPassword,
+                        label: 'Confirm Password',
+                        obscure: _obscureConfirm,
+                        hint: 'Re-enter your password',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                            size: 20,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  AuthErrorBanner(message: _error!),
+                ],
+
+                const SizedBox(height: 28),
+
+                AppButton(
+                  text: _loading ? 'Creating Profile...' : 'Complete Registration',
+                  onPressed: _loading ? null : _completeRegistration,
+                  icon: _loading
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                ),
               ],
-
-              const SizedBox(height: 28),
-
-              AppButton(
-                text: _loading ? 'Creating Account...' : 'Complete Registration',
-                onPressed: _loading ? null : _completeRegistration,
-                icon: _loading
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.check_rounded, size: 18),
-              ),
-            ],
+            ),
           ),
         ),
       ),
