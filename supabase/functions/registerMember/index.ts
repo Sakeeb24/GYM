@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
       .eq('phone', cleanPhone)
       .maybeSingle();
 
-    if (existingProfileByPhone && existingProfileByPhone.username) {
+    if (existingProfileByPhone) {
       return jsonError(
         'This phone number is already registered. Please log in with your username and password.',
         409,
@@ -117,17 +117,10 @@ Deno.serve(async (req: Request) => {
 
     if (memberRow && memberRow.profile_id) {
       // Member record already has a linked profile
-      const { data: linkedProf } = await admin
-        .from('profiles')
-        .select('username')
-        .eq('user_id', memberRow.profile_id)
-        .maybeSingle();
-      if (linkedProf?.username) {
-        return jsonError(
-          'This phone number is already registered. Please log in with your username and password.',
-          409,
-        );
-      }
+      return jsonError(
+        'This phone number is already registered. Please log in with your username and password.',
+        409,
+      );
     }
 
     if (!memberRow) {
@@ -166,6 +159,13 @@ Deno.serve(async (req: Request) => {
     });
 
     if (signUpErr || !signUpData?.user) {
+      const errLower = (signUpErr?.message ?? '').toLowerCase();
+      if (errLower.includes('already registered') || errLower.includes('already exists') || errLower.includes('duplicate')) {
+        return jsonError(
+          'This phone number is already registered. Please log in with your username and password.',
+          409,
+        );
+      }
       return jsonError(`Account creation failed: ${signUpErr?.message ?? 'unknown error'}`, 500);
     }
     newUserId = signUpData.user.id;

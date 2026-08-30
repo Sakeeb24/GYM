@@ -27,7 +27,7 @@ void main() {
       userId: 'user-1',
       gymId: 'gym-1',
       username: 'coach_dave',
-      fullName: 'Dave Miller',
+      fullName: 'Coach Dave',
       role: AppRole.owner,
     );
 
@@ -35,7 +35,7 @@ void main() {
       NoShowCase(
         id: 'case-1',
         memberId: 'mem-1',
-        memberName: 'Elena Rostova',
+        memberName: 'Athlete Alpha',
         gymId: 'gym-1',
         status: 'open',
         reason: '14 days inactive',
@@ -67,7 +67,7 @@ void main() {
       expect(find.text('AT RISK'), findsOneWidget);
 
       // Verify Card details
-      expect(find.text('Elena Rostova'), findsOneWidget);
+      expect(find.text('Athlete Alpha'), findsOneWidget);
       expect(find.text('Last visit: 12 days ago • Reason: 14 days inactive'), findsOneWidget);
       expect(find.text('OPEN'), findsOneWidget);
 
@@ -78,7 +78,7 @@ void main() {
       // Tap Contact button
       await tester.tap(find.text('Contact'));
       await tester.pumpAndSettle();
-      expect(find.text('Opening outreach channel for Elena Rostova...'), findsOneWidget);
+      expect(find.text('Opening outreach channel for Athlete Alpha...'), findsOneWidget);
     });
 
     testWidgets('Handles resolve action on retention card', (tester) async {
@@ -103,10 +103,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(fakeRepo.resolved, isTrue);
-      expect(find.text('Resolved retention case for Elena Rostova'), findsOneWidget);
+      expect(find.text('Resolved retention case for Athlete Alpha'), findsOneWidget);
     });
 
-    testWidgets('Renders empty state when no cases exist', (tester) async {
+    testWidgets('Database success with zero rows displays empty state', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -120,7 +120,25 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No retention alerts matching this filter category.'), findsOneWidget);
+      expect(find.text('No members require attention.'), findsOneWidget);
+    });
+
+    testWidgets('Database/query failure displays visible error state with retry', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream.value(ownerProfile)),
+            openCasesProvider('gym-1').overrideWith((ref) => Stream.error(Exception('Database network timeout'))),
+          ],
+          child: const MaterialApp(
+            home: RedListScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unable to load Red List. Please try again.'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
     });
   });
 }

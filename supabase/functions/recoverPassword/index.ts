@@ -4,12 +4,6 @@ import { createAdminClient, jsonOk, jsonError } from '../_shared/supabaseServer.
 // Step 1: action = 'request_otp' -> locates account by username, dispatches SMS OTP to registered phone.
 // Step 2: action = 'reset_password' -> verifies OTP, securely updates password on auth.users.
 
-const DEV_TEST_PHONE_OTPS: Record<string, string> = {
-  '+917019707247': '123456',
-  '+919876543210': '123456',
-  '+15555550100': '123456',
-};
-
 function maskPhone(phone: string): string {
   if (phone.length <= 4) return '****';
   const visibleStart = phone.slice(0, 3);
@@ -42,7 +36,6 @@ Deno.serve(async (req: Request) => {
 
     const cleanUsername = username.toLowerCase().trim();
     const admin = createAdminClient();
-    const isProduction = Deno.env.get('ENVIRONMENT') === 'production';
 
     // Find profile
     const { data: profile, error: profErr } = await admin
@@ -61,20 +54,16 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'request_otp') {
       // Step 1: Send OTP to the registered phone
-      const isDevTest = !isProduction && Boolean(DEV_TEST_PHONE_OTPS[profile.phone]);
-      if (!isDevTest) {
-        const { error: otpSendErr } = await admin.auth.signInWithOtp({
-          phone: profile.phone,
-        });
-        if (otpSendErr) {
-          return jsonError(`Failed to send SMS OTP: ${otpSendErr.message}`, 500);
-        }
+      const { error: otpSendErr } = await admin.auth.signInWithOtp({
+        phone: profile.phone,
+      });
+      if (otpSendErr) {
+        return jsonError(`Failed to send SMS OTP: ${otpSendErr.message}`, 500);
       }
 
       return jsonOk({
         message: 'OTP sent to your registered phone number.',
         masked_phone: maskPhone(profile.phone),
-        phone: isDevTest ? profile.phone : undefined,
       });
     } else if (action === 'reset_password') {
       // Step 2: Verify OTP and update password
@@ -83,17 +72,13 @@ Deno.serve(async (req: Request) => {
         return jsonError('New password must be at least 8 characters', 400);
       }
 
-      const isDevTest = !isProduction && DEV_TEST_PHONE_OTPS[profile.phone] === otp_token.trim();
-
-      if (!isDevTest) {
-        const { error: verifyErr } = await admin.auth.verifyOtp({
-          phone: profile.phone,
-          token: otp_token.trim(),
-          type: 'sms',
-        });
-        if (verifyErr) {
-          return jsonError(`Invalid or expired OTP: ${verifyErr.message}`, 400);
-        }
+      const { error: verifyErr } = await admin.auth.verifyOtp({
+        phone: profile.phone,
+        token: otp_token.trim(),
+        type: 'sms',
+      });
+      if (verifyErr) {
+        return jsonError(`Invalid or expired OTP: ${verifyErr.message}`, 400);
       }
 
       // Update password on auth user
@@ -109,21 +94,21 @@ Deno.serve(async (req: Request) => {
       // Write audit log
       await admin.from('audit_logs').insert({
         gym_id: profile.gym_id,
-        actor_user_id: profile.user_id,
-        action: 'user.password_reset',
-        entity: 'profile',
+        actor_id: profile.user_id,
+        action: 'auth.password_reset',
+        entity_type: 'profile',
         entity_id: profile.user_id,
-        detail: { username: cleanUsername },
-      }).catch(() => {});
+        details: { username: cleanUsername, method: 'sms_otp_recovery' },
+      });
 
       return jsonOk({
-        message: 'Password has been reset successfully. Please log in with your new password.',
+        message: 'Password has been successfully updated. Please log in with your new password.',
       });
-    } else {
-      return jsonError("Invalid action. Must be 'request_otp' or 'reset_password'", 400);
     }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return jsonError(`recoverPassword error: ${msg}`, 500);
+
+    return jsonError('Invalid action. Use request_otp or reset_password.', 400);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return jsonError(`Password recovery error: ${msg}`, 500);
   }
 });

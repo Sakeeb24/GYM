@@ -103,7 +103,7 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
               Expanded(
                 child: filteredCases.isEmpty
                     ? const AppEmptyState(
-                        message: 'No retention alerts matching this filter category.',
+                        message: 'No members require attention.',
                         icon: Icons.check_circle_outline_rounded,
                       )
                     : ListView.separated(
@@ -136,7 +136,7 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
         },
         loading: () => const AppLoadingState(),
         error: (e, stack) => AppErrorState(
-          message: 'Failed to load retention red list',
+          message: 'Unable to load Red List. Please try again.',
           onRetry: () => ref.invalidate(openCasesProvider(profile.gymId)),
         ),
       ),

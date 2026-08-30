@@ -33,7 +33,7 @@ class AppErrorMapper {
           return 'This username is already taken. Please choose another username.';
         }
         if (error.message.contains('phone')) {
-          return 'This phone number is already registered. Please log in.';
+          return 'This phone number is already registered. Please log in with your username and password.';
         }
         return 'A record with these details already exists.';
       }
@@ -49,7 +49,7 @@ class AppErrorMapper {
         return details['error'] as String;
       }
       if (error.status == 409) {
-        return 'Account already exists. Please log in with your credentials.';
+        return 'This phone number is already registered. Please log in with your username and password.';
       }
       if (error.status == 400) {
         return 'Invalid request details. Please check your inputs.';
