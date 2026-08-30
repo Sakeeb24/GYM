@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth_notifier.dart';
 import 'auth_widgets.dart';
 
@@ -46,7 +47,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authActionsProvider).signInWithUsername(u, p);
     } catch (e) {
       if (mounted) {
-        setState(() => _localError = e.toString().replaceAll('Exception: ', ''));
+        String msg = e.toString().replaceAll('Exception: ', '').replaceAll('StateError: ', '');
+        if (e is AuthApiException) {
+          msg = e.message;
+        }
+        setState(() => _localError = msg);
       }
     } finally {
       if (mounted) setState(() => _submitting = false);

@@ -1,4 +1,4 @@
-﻿-- 011_security_and_rls_hardening.sql
+-- 011_security_and_rls_hardening.sql
 -- Hardens RLS across all tables: replaces overly broad "FOR ALL" policies with
 -- fine-grained role-based policies (owner, front_desk, trainer, member),
 -- secures gyms and gym_settings tables, and fixes the handle_new_user trigger.

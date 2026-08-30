@@ -81,12 +81,13 @@ class RenewalsScreen extends ConsumerWidget {
                   ? '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}'
                   : 'Due Soon';
 
-              return Container(
-                decoration: BoxDecoration(
-                  color: cs.surface,
+              return Material(
+                color: cs.surface,
+                shape: RoundedRectangleBorder(
                   borderRadius: AppRadii.r8,
-                  border: Border.all(color: cs.outline),
+                  side: BorderSide(color: cs.outline),
                 ),
+                clipBehavior: Clip.antiAlias,
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                   leading: Container(

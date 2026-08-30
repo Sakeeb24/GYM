@@ -57,8 +57,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       setState(() => _localError = 'Username must be at least 3 characters.');
       return;
     }
-    if (p.length < 6) {
-      setState(() => _localError = 'Password must be at least 6 characters.');
+    if (p.length < 8) {
+      setState(() => _localError = 'Password must be at least 8 characters.');
       return;
     }
     if (p != cp) {
@@ -145,7 +145,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                   AppTextField(
                     controller: _password,
                     label: 'Password',
-                    hint: 'Minimum 6 characters',
+                    hint: 'Minimum 8 characters',
                     obscure: _obscure,
                     suffixIcon: IconButton(
                       icon: Icon(

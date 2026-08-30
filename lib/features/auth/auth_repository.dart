@@ -55,9 +55,39 @@ class SupabaseAuthRepository implements AuthRepository {
     if (res.user == null) throw StateError('Sign in failed');
   }
 
+  /// Predefined test phone numbers and OTPs for testing and verification
+  static const Map<String, String> testPhoneOtps = {
+    '+917019707247': '123456',
+    '+919876543210': '123456',
+    '+15555550100': '123456',
+    '+919999999999': '123456',
+    '+911234567890': '123456',
+  };
+
+  static bool isTestPhone(String phone) =>
+      testPhoneOtps.containsKey(normalizePhone(phone));
+
+  /// Normalizes phone number to E.164 format (+91 default for 10-digit numbers)
+  static String normalizePhone(String phone) {
+    String clean = phone.replaceAll(RegExp(r'[\s\-()]'), '');
+    if (!clean.startsWith('+')) {
+      clean = clean.length == 10 ? '+91$clean' : '+$clean';
+    }
+    return clean;
+  }
+
   @override
   Future<void> sendPhoneOtp(String phone) async {
-    await client.auth.signInWithOtp(phone: phone.trim());
+    final clean = normalizePhone(phone);
+    if (testPhoneOtps.containsKey(clean)) {
+      try {
+        await client.auth.signInWithOtp(phone: clean);
+      } catch (_) {
+        // Test numbers are verified directly via registerMember edge function
+      }
+      return;
+    }
+    await client.auth.signInWithOtp(phone: clean);
   }
 
   @override
@@ -72,7 +102,7 @@ class SupabaseAuthRepository implements AuthRepository {
       'registerMember',
       body: {
         'full_name': fullName.trim(),
-        'phone': phone.trim(),
+        'phone': normalizePhone(phone),
         'otp_token': otpToken.trim(),
         'username': username.trim().toLowerCase(),
         'password': password,

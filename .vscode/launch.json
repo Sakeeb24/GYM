@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "LiftFlow (Dev - Device)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define-from-file=config/dev.json"
+      ]
+    },
+    {
+      "name": "LiftFlow (Dev - Web)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d", "edge",
+        "--dart-define-from-file=config/dev.json"
+      ]
+    },
+    {
+      "name": "LiftFlow (Release - Android)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define-from-file=config/dev.json"
+      ]
+    }
+  ]
+}

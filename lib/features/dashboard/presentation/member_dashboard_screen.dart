@@ -234,12 +234,13 @@ class MemberDashboardScreen extends ConsumerWidget {
                       final dateStr = '${visit.year}-${visit.month.toString().padLeft(2, '0')}-${visit.day.toString().padLeft(2, '0')}';
                       final timeStr = '${visit.hour.toString().padLeft(2, '0')}:${visit.minute.toString().padLeft(2, '0')}';
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: cs.surface,
+                      return Material(
+                        color: cs.surface,
+                        shape: RoundedRectangleBorder(
                           borderRadius: AppRadii.r8,
-                          border: Border.all(color: cs.outline),
+                          side: BorderSide(color: cs.outline),
                         ),
+                        clipBehavior: Clip.antiAlias,
                         child: ListTile(
                           dense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),

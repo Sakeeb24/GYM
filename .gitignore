@@ -54,10 +54,23 @@ package-lock.json
 .env.*
 *.env
 *.env.*
+config/dev.json
+config/staging.json
+config/prod.json
+config/production.json
+config/*.local.json
+*.local.json
+env.json
+dart_defines.json
+android/key.properties
+*.jks
+*.keystore
 
 # Ephemeral build files
 ephemeral/
 **/ephemeral/
+.kotlin/
+**/.kotlin/
 
 # Playwright test outputs
 e2e/playwright-report/

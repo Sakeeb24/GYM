@@ -209,12 +209,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
+                Material(
+                  color: cs.surface,
+                  shape: RoundedRectangleBorder(
                     borderRadius: AppRadii.r12,
-                    border: Border.all(color: cs.outline),
+                    side: BorderSide(color: cs.outline),
                   ),
+                  clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
                       SwitchListTile(

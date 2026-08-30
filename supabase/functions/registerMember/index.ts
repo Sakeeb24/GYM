@@ -1,4 +1,4 @@
-﻿import { createAdminClient, jsonOk, jsonError } from '../_shared/supabaseServer.ts';
+import { createAdminClient, jsonOk, jsonError } from '../_shared/supabaseServer.ts';
 
 // registerMember — public endpoint for gym member self-onboarding.
 // Ensures strict atomic linking: auth.users -> profiles -> members.profile_id
@@ -7,16 +7,25 @@
 //   { full_name, phone, otp_token, username, password }
 //
 // Steps (all server-side with service_role):
-//   1. Verify phone OTP token via Supabase Auth Admin.
-//   2. Look up members table by phone to resolve gym_id and pre-enrolled member.
-//   3. Prevent duplicate account registration if member is already claimed.
-//   4. Check username uniqueness.
-//   5. Create auth.users with synthetic email ({username}@liftflow.internal).
-//   6. Update profiles with username, phone_verified, full_name, phone.
-//   7. Link pre-enrolled member: members.profile_id = newUserId.
-//   8. Clean up intermediate OTP temporary user (if created).
+//   1. Verify phone OTP token via Supabase Auth Admin (supports predefined test phone OTPs).
+//   2. Look up members table by phone to resolve gym_id, or auto-enroll into default gym.
+//   3. Check username uniqueness.
+//   4. Create / update auth.users with synthetic email ({username}@liftflow.internal).
+//   5. Update profiles with username, phone_verified, full_name, phone.
+//   6. Link member: members.profile_id = newUserId.
+//   7. Clean up intermediate OTP temporary user (if created).
 
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
+
+const TEST_PHONE_OTPS: Record<string, string> = {
+  '+917019707247': '123456',
+  '+919876543210': '123456',
+  '+15555550100': '123456',
+  '+919999999999': '123456',
+  '+911234567890': '123456',
+};
+
+const DEFAULT_GYM_ID = 'a0000000-0000-0000-0000-000000000001';
 
 interface RegisterReq {
   full_name: string;
@@ -59,71 +68,116 @@ Deno.serve(async (req: Request) => {
     }
 
     const cleanUsername = username.toLowerCase().trim();
-    const cleanPhone = phone.trim();
+    let cleanPhone = phone.replaceAll(/[\s\-()]/g, '');
+    if (!cleanPhone.startsWith('+')) {
+      cleanPhone = cleanPhone.length === 10 ? `+91${cleanPhone}` : `+${cleanPhone}`;
+    }
+
     const admin = createAdminClient();
+    let tempOtpUserId: string | null = null;
 
     // --- 2. Verify the phone OTP ---
-    const { data: otpData, error: otpErr } = await admin.auth.verifyOtp({
-      phone: cleanPhone,
-      token: otp_token.trim(),
-      type: 'sms',
-    });
-    if (otpErr || !otpData?.user) {
-      return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid or expired token'}`, 400);
-    }
-    const tempOtpUserId = otpData.user.id;
+    const isTestPhone = Boolean(TEST_PHONE_OTPS[cleanPhone]);
+    const expectedTestOtp = TEST_PHONE_OTPS[cleanPhone];
 
-    // --- 3. Resolve member record from members table by phone ---
-    const { data: memberRow, error: memberErr } = await admin
+    if (isTestPhone && otp_token.trim() === expectedTestOtp) {
+      // Predefined test phone and OTP matched
+    } else {
+      const { data: otpData, error: otpErr } = await admin.auth.verifyOtp({
+        phone: cleanPhone,
+        token: otp_token.trim(),
+        type: 'sms',
+      });
+      if (otpErr || !otpData?.user) {
+        return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid or expired token'}`, 400);
+      }
+      tempOtpUserId = otpData.user.id;
+    }
+
+    // --- 3. Resolve or enroll member record ---
+    let { data: memberRow, error: memberErr } = await admin
       .from('members')
       .select('id, gym_id, profile_id, full_name')
       .eq('phone', cleanPhone)
       .maybeSingle();
 
-    if (memberErr || !memberRow) {
-      return jsonError(
-        'No gym membership found for this phone number. Please contact your gym front desk to enroll first.',
-        404,
-      );
+    if (!memberRow) {
+      const memberNumber = `M-${Math.floor(1000 + Math.random() * 9000)}`;
+      const { data: newMember, error: createMemErr } = await admin
+        .from('members')
+        .insert({
+          gym_id: DEFAULT_GYM_ID,
+          member_number: memberNumber,
+          full_name: full_name.trim(),
+          phone: cleanPhone,
+        })
+        .select('id, gym_id, profile_id, full_name')
+        .single();
+
+      if (createMemErr || !newMember) {
+        return jsonError(`Failed to enroll member: ${createMemErr?.message ?? 'database error'}`, 500);
+      }
+      memberRow = newMember;
     }
 
-    // --- 4. Prevent duplicate registration if already claimed ---
-    if (memberRow.profile_id != null) {
-      return jsonError('This gym member account has already been registered. Please sign in instead.', 409);
-    }
-
-    const gymId: string = memberRow.gym_id;
+    const gymId: string = memberRow.gym_id ?? DEFAULT_GYM_ID;
     const memberId: string = memberRow.id;
 
-    // --- 5. Check username uniqueness in profiles ---
+    // --- 4. Check username uniqueness in profiles ---
     const { data: existingProfile } = await admin
       .from('profiles')
       .select('user_id')
       .eq('username', cleanUsername)
       .maybeSingle();
 
-    if (existingProfile) {
-      return jsonError('Username is already taken. Please choose another username.', 409);
-    }
-
-    // --- 6. Create permanent auth.users with synthetic email & tenant metadata ---
     const syntheticEmail = `${cleanUsername}@liftflow.internal`;
-    const { data: signUpData, error: signUpErr } = await admin.auth.admin.createUser({
-      email: syntheticEmail,
-      password,
-      phone: cleanPhone,
-      app_metadata: { gym_id: gymId, role: 'member' },
-      user_metadata: { full_name: full_name.trim() },
-      email_confirm: true, // skip email confirmation — verified by phone OTP
-    });
 
-    if (signUpErr || !signUpData?.user) {
-      return jsonError(`Account creation failed: ${signUpErr?.message ?? 'unknown error'}`, 500);
+    // --- 5. Create or update permanent auth.users ---
+    let newUserId: string;
+    const { data: userList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+    const existingAuthUser = userList?.users?.find(
+      (u) => u.email === syntheticEmail || u.phone === cleanPhone,
+    );
+
+    if (existingAuthUser) {
+      const { data: updatedData, error: updateErr } = await admin.auth.admin.updateUserById(
+        existingAuthUser.id,
+        {
+          email: syntheticEmail,
+          password,
+          phone: cleanPhone,
+          app_metadata: { gym_id: gymId, role: 'member' },
+          user_metadata: { full_name: full_name.trim() },
+          email_confirm: true,
+          phone_confirm: true,
+        },
+      );
+      if (updateErr || !updatedData?.user) {
+        return jsonError(`Account update failed: ${updateErr?.message ?? 'unknown error'}`, 500);
+      }
+      newUserId = updatedData.user.id;
+    } else {
+      if (existingProfile) {
+        return jsonError('Username is already taken. Please choose another username.', 409);
+      }
+
+      const { data: signUpData, error: signUpErr } = await admin.auth.admin.createUser({
+        email: syntheticEmail,
+        password,
+        phone: cleanPhone,
+        app_metadata: { gym_id: gymId, role: 'member' },
+        user_metadata: { full_name: full_name.trim() },
+        email_confirm: true,
+        phone_confirm: true,
+      });
+
+      if (signUpErr || !signUpData?.user) {
+        return jsonError(`Account creation failed: ${signUpErr?.message ?? 'unknown error'}`, 500);
+      }
+      newUserId = signUpData.user.id;
     }
 
-    const newUserId = signUpData.user.id;
-
-    // --- 7. Update/Upsert profile with username + phone_verified ---
+    // --- 6. Upsert profile with username + phone_verified ---
     const { error: profileErr } = await admin
       .from('profiles')
       .upsert({
@@ -143,7 +197,7 @@ Deno.serve(async (req: Request) => {
       console.warn(`registerMember: profile upsert warning: ${profileErr.message}`);
     }
 
-    // --- 8. Link the member record: members.profile_id = newUserId ---
+    // --- 7. Link the member record: members.profile_id = newUserId ---
     const { error: linkErr } = await admin
       .from('members')
       .update({
@@ -157,20 +211,42 @@ Deno.serve(async (req: Request) => {
       return jsonError(`Failed to link member record: ${linkErr.message}`, 500);
     }
 
-    // --- 9. Clean up temporary OTP user (if different from new user) ---
+    // Ensure member has an active membership
+    const { data: activeMem } = await admin
+      .from('memberships')
+      .select('id')
+      .eq('member_id', memberId)
+      .maybeSingle();
+
+    if (!activeMem) {
+      await admin.from('memberships').insert({
+        gym_id: gymId,
+        member_id: memberId,
+        plan_id: 'b0000000-0000-0000-0000-000000000001',
+        started_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'active',
+      });
+    }
+
+    // --- 8. Clean up temporary OTP user if separate ---
     if (tempOtpUserId && tempOtpUserId !== newUserId) {
       await admin.auth.admin.deleteUser(tempOtpUserId).catch(() => {});
     }
 
-    // --- 10. Write audit log ---
-    await admin.from('audit_logs').insert({
-      gym_id: gymId,
-      actor_user_id: newUserId,
-      action: 'member.registered',
-      entity: 'member',
-      entity_id: memberId,
-      detail: { username: cleanUsername, phone: cleanPhone },
-    }).catch(() => {});
+    // --- 9. Write audit log ---
+    try {
+      await admin.from('audit_logs').insert({
+        gym_id: gymId,
+        actor_user_id: newUserId,
+        action: 'member.registered',
+        entity: 'member',
+        entity_id: memberId,
+        detail: { username: cleanUsername, phone: cleanPhone },
+      });
+    } catch (_) {
+      // Non-blocking audit log
+    }
 
     return jsonOk({
       message: 'Registration successful. You can now sign in with your username and password.',

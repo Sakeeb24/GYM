@@ -48,6 +48,7 @@ async function main() {
       email text,
       phone text,
       raw_user_meta_data jsonb,
+      raw_app_meta_data jsonb,
       app_metadata jsonb,
       created_at timestamptz default now(),
       updated_at timestamptz default now()
@@ -82,7 +83,7 @@ async function main() {
 
   // --- Create auth users (fires handle_new_user trigger -> profiles) ---
   const makeUser = (id, gymId, role, name, email, phone) =>
-    `insert into auth.users(id, email, phone, raw_user_meta_data, app_metadata)
+    `insert into auth.users(id, email, phone, raw_user_meta_data, raw_app_meta_data)
        values ('${id}', '${email}', '${phone}',
                jsonb_build_object('full_name','${name}'),
                jsonb_build_object('gym_id','${gymId}','role','${role}'));`;

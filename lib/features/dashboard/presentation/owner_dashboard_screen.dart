@@ -358,12 +358,13 @@ class _RecentActivityList extends StatelessWidget {
       ('Elena Rostova', 'Membership expiring in 2 days', '1 hr ago', Icons.warning_amber_rounded, AppColors.warning),
     ];
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
+    return Material(
+      color: cs.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: AppRadii.r12,
-        border: Border.all(color: cs.outline),
+        side: BorderSide(color: cs.outline),
       ),
+      clipBehavior: Clip.antiAlias,
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
