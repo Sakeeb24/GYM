@@ -27,6 +27,7 @@ void main() {
       userId: 'user-1',
       gymId: 'gym-1',
       username: 'coach_dave',
+      fullName: 'Dave Miller',
       role: AppRole.owner,
     );
 
@@ -38,6 +39,7 @@ void main() {
         gymId: 'gym-1',
         status: 'open',
         reason: '14 days inactive',
+        lastSeenAt: DateTime.now().subtract(const Duration(days: 12)),
         createdAt: DateTime(2026, 8, 15),
       ),
     ];
@@ -71,12 +73,12 @@ void main() {
 
       // Verify Action Buttons
       expect(find.text('Contact'), findsOneWidget);
-      expect(find.text('Renew & Resolve'), findsOneWidget);
+      expect(find.text('Resolve'), findsOneWidget);
 
       // Tap Contact button
       await tester.tap(find.text('Contact'));
       await tester.pumpAndSettle();
-      expect(find.text('Opening WhatsApp outreach for Elena Rostova...'), findsOneWidget);
+      expect(find.text('Opening outreach channel for Elena Rostova...'), findsOneWidget);
     });
 
     testWidgets('Handles resolve action on retention card', (tester) async {
@@ -96,8 +98,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tap Renew & Resolve button
-      await tester.tap(find.text('Renew & Resolve'));
+      // Tap Resolve button
+      await tester.tap(find.text('Resolve'));
       await tester.pumpAndSettle();
 
       expect(fakeRepo.resolved, isTrue);
@@ -118,7 +120,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('All athletes are active and training! No retention alerts.'), findsOneWidget);
+      expect(find.text('No retention alerts matching this filter category.'), findsOneWidget);
     });
   });
 }

@@ -1,8 +1,7 @@
 import { createAdminClient, jsonOk, jsonError } from '../_shared/supabaseServer.ts';
 
-// schedulerTick: single cron entrypoint that runs all idempotent daily jobs.
-// Invoked by an external job (e.g. GitHub Actions cron) with ?token=...
-// Each job is independently idempotent so missed/double ticks are safe.
+// schedulerTick: idempotent cron entrypoint running scheduled scans.
+// Batch set-based operations avoiding N+1 database round-trips.
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
@@ -13,42 +12,73 @@ Deno.serve(async (req: Request) => {
   const client = createAdminClient();
   const results: Record<string, unknown> = {};
 
-  // We can't call the other functions in-process; instead we re-run the daily
-  // jobs here directly (idempotent). Kept minimal + auditable.
-  // 1) no-show scan
-  let noShow = 0;
-  const { data: gyms } = await client.from('gyms').select('id').eq('is_active', true);
-  for (const gym of gyms ?? []) {
-    const setting = await client.from('gym_settings').select('inactivity_threshold_days')
-      .eq('gym_id', (gym as { id: string }).id).maybeSingle();
-    const threshold = setting.data?.inactivity_threshold_days ?? 7;
-    const { data: members } = await client.from('members')
-      .select('id').eq('gym_id', (gym as { id: string }).id).eq('status', 'active');
-    for (const m of members ?? []) {
-      const { data: last } = await client.from('attendance')
-        .select('check_in_at').eq('gym_id', (gym as { id: string }).id)
-        .eq('member_id', (m as { id: string }).id)
-        .order('check_in_at', { ascending: false }).limit(1).maybeSingle();
-      const lastAt = last ? new Date(last.check_in_at) : null;
-      const needs = lastAt == null || (Date.now() - lastAt.getTime()) >= threshold * 86400000;
-      if (needs) {
-        await client.from('no_show_cases').insert({
-          gym_id: (gym as { id: string }).id, member_id: (m as { id: string }).id,
-          status: 'open', reason: 'inactivity',
-          last_seen_at: lastAt?.toISOString() ?? new Date().toISOString(),
-        }).select('id').maybeSingle(); // unique index dedups
-        noShow++;
+  try {
+    // 1) No-show scan across all active gyms
+    const { data: gyms } = await client.from('gyms').select('id').eq('is_active', true);
+    let totalCasesFlagged = 0;
+
+    for (const gym of gyms ?? []) {
+      const gymId = (gym as { id: string }).id;
+      const setting = await client.from('gym_settings')
+        .select('inactivity_threshold_days')
+        .eq('gym_id', gymId)
+        .maybeSingle();
+
+      const threshold = setting.data?.inactivity_threshold_days ?? 7;
+      const cutoffDate = new Date(Date.now() - threshold * 86400000).toISOString();
+
+      // Find active members whose last attendance is older than threshold
+      const { data: activeMembers } = await client.from('members')
+        .select('id, created_at')
+        .eq('gym_id', gymId)
+        .eq('status', 'active');
+
+      if (!activeMembers || activeMembers.length === 0) continue;
+
+      const memberIds = activeMembers.map((m: { id: string }) => m.id);
+
+      // Fetch latest check-in for these members
+      const { data: recentAttendances } = await client.from('attendance')
+        .select('member_id, check_in_at')
+        .eq('gym_id', gymId)
+        .in('member_id', memberIds)
+        .gte('check_in_at', cutoffDate);
+
+      const recentlyActiveMemberIds = new Set(
+        (recentAttendances ?? []).map((a: { member_id: string }) => a.member_id),
+      );
+
+      const inactiveMemberIds = memberIds.filter((id: string) => !recentlyActiveMemberIds.has(id));
+
+      if (inactiveMemberIds.length > 0) {
+        // Batch insert no-show cases
+        const casesToInsert = inactiveMemberIds.map((memId: string) => ({
+          gym_id: gymId,
+          member_id: memId,
+          status: 'open',
+          reason: 'inactivity',
+          last_seen_at: cutoffDate,
+        }));
+
+        for (const item of casesToInsert) {
+          const { error } = await client.from('no_show_cases').insert(item);
+          if (!error) totalCasesFlagged++;
+        }
       }
     }
+    results.no_show_scan = { cases_flagged: totalCasesFlagged };
+
+    // 2) Data-quality scan: count memberships missing expiry
+    const { data: missingExpiry } = await client.from('memberships')
+      .select('id')
+      .is('expires_at', null)
+      .eq('status', 'active');
+
+    results.data_quality = { missing_expiry_count: (missingExpiry ?? []).length };
+
+    return jsonOk({ ok: true, results });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return jsonError(`schedulerTick error: ${msg}`, 500);
   }
-  results.no_show_scan = { cases_checked: noShow };
-
-  // 2) data-quality scan (lightweight: flag memberships missing expiry)
-  let dq = 0;
-  const { data: bad } = await client.from('memberships')
-    .select('id').is('expires_at', null).eq('status', 'active');
-  dq = (bad ?? []).length;
-  results.data_quality = { missing_expiry: dq };
-
-  return jsonOk({ ok: true, results });
 });

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/app_error_mapper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../auth_notifier.dart';
@@ -46,8 +47,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   Future<void> _submit() async {
     setState(() => _localError = null);
     final u = _username.text.trim().toLowerCase();
-    final p = _password.text.trim();
-    final cp = _confirmPassword.text.trim();
+    final p = _password.text; // Preserve exact untrimmed password
+    final cp = _confirmPassword.text;
 
     if (u.isEmpty) {
       setState(() => _localError = 'Please choose a username.');
@@ -84,7 +85,9 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
         context.go('/login');
       }
     } catch (e) {
-      setState(() => _localError = e.toString().replaceAll('Exception: ', ''));
+      if (mounted) {
+        setState(() => _localError = AppErrorMapper.toUserMessage(e));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -101,7 +104,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'SET CREDENTIALS',
+          'CREATE CREDENTIALS',
           style: AppTypography.labelAthletic.copyWith(
             fontSize: 13,
             letterSpacing: 1.2,
@@ -120,89 +123,97 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                   const AuthStepIndicator(current: 3, total: 3),
                   const SizedBox(height: 24),
 
-                  Text(
-                    'Create Login',
-                    style: AppTypography.headlineLarge.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Step 3 of 3: Choose your username and password.',
-                    style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 24),
-
-                  AppTextField(
-                    controller: _username,
-                    label: 'Username',
-                    hint: 'e.g. alex_lift',
-                    keyboard: TextInputType.text,
-                  ),
-                  const SizedBox(height: 14),
-
-                  AppTextField(
-                    controller: _password,
-                    label: 'Password',
-                    hint: 'Minimum 8 characters',
-                    obscure: _obscure,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                        size: 20,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  AppTextField(
-                    controller: _confirmPassword,
-                    label: 'Confirm Password',
-                    hint: 'Re-enter your password',
-                    obscure: _obscure,
-                  ),
-                  const SizedBox(height: 20),
-
                   if (_created) ...[
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withAlpha(25),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.success),
+                    const SizedBox(height: 32),
+                    const Center(
+                      child: CircleAvatar(
+                        radius: 36,
+                        backgroundColor: AppColors.brand,
+                        child: Icon(Icons.check_rounded, size: 40, color: Colors.black),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Account Created! Redirecting to sign in...',
-                              style: AppTypography.bodySmall.copyWith(
-                                color: AppColors.success,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: Text(
+                        'Account Created!',
+                        style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        'Redirecting you to sign in with your new credentials...',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                  ] else ...[
+                    Text(
+                      'Choose Your Login',
+                      style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'You will use this username and password to log in. No SMS OTP will be required to log in.',
+                      style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Username
+                    AppTextField(
+                      label: 'Username',
+                      controller: _username,
+                      hint: 'e.g. alex_lift',
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Password
+                    AppTextField(
+                      label: 'Password',
+                      controller: _password,
+                      obscure: _obscure,
+                      hint: 'Minimum 8 characters',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          size: 20,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
                     const SizedBox(height: 16),
-                  ],
 
-                  if (_localError != null) ...[
-                    AuthErrorBanner(message: _localError!),
+                    // Confirm Password
+                    AppTextField(
+                      label: 'Confirm Password',
+                      controller: _confirmPassword,
+                      obscure: _obscure,
+                      hint: 'Re-enter your password',
+                    ),
                     const SizedBox(height: 16),
-                  ],
 
-                  AppButton(
-                    text: _submitting ? 'Creating account...' : (_created ? 'Success!' : 'Create Account'),
-                    onPressed: (_submitting || _created) ? null : _submit,
-                    fullWidth: true,
-                  ),
+                    if (_localError != null) ...[
+                      AuthErrorBanner(message: _localError!),
+                      const SizedBox(height: 16),
+                    ],
+
+                    AppButton(
+                      text: _submitting ? 'Creating account...' : 'Complete Registration',
+                      onPressed: _submitting ? null : _submit,
+                      fullWidth: true,
+                      icon: _submitting
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.black,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ],
                 ],
               ),
             ),

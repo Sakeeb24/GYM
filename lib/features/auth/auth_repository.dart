@@ -1,17 +1,21 @@
 // lib/features/auth/auth_repository.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../config/env.dart';
 import '../../core/models/profile.dart';
 import '../../core/services/supabase_client.dart';
 
 /// Abstraction over auth + profile fetches. The UI depends on this interface
-/// (testable; no Supabase in the widget layer).
+/// (testable; no direct Supabase in the widget layer).
 abstract class AuthRepository {
   Stream<AuthState> authState();
+
   /// Signs in using a username. Internally constructs the synthetic email
   /// ({username}@liftflow.internal) — users never see or type the email.
   Future<void> signInWithUsername(String username, String password);
+
   /// Sends a phone OTP for registration. Called before account creation.
   Future<void> sendPhoneOtp(String phone);
+
   /// Registers a new member via the server-side Edge Function.
   Future<void> registerMember({
     required String fullName,
@@ -20,9 +24,21 @@ abstract class AuthRepository {
     required String username,
     required String password,
   });
+
+  /// Password reset flow: Step 1 requests OTP for registered username.
+  Future<String> requestPasswordReset(String username);
+
+  /// Password reset flow: Step 2 verifies OTP and sets new password.
+  Future<void> completePasswordReset({
+    required String username,
+    required String otpToken,
+    required String newPassword,
+  });
+
   Future<void> signOut();
   Future<Profile?> currentProfile();
   Stream<Profile?> watchProfile();
+
   /// Checks if a username is already taken. Returns true if taken.
   Future<bool> isUsernameTaken(String username);
 }
@@ -48,29 +64,32 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signInWithUsername(String username, String password) async {
+    final cleanUsername = username.trim().toLowerCase();
     final res = await client.auth.signInWithPassword(
-      email: _syntheticEmail(username.trim().toLowerCase()),
+      email: _syntheticEmail(cleanUsername),
       password: password,
     );
     if (res.user == null) throw StateError('Sign in failed');
   }
 
-  /// Predefined test phone numbers and OTPs for testing and verification
-  static const Map<String, String> testPhoneOtps = {
+  /// Predefined test phone numbers and OTPs for testing and verification (Dev ONLY)
+  static const Map<String, String> devTestPhoneOtps = {
     '+917019707247': '123456',
     '+919876543210': '123456',
     '+15555550100': '123456',
-    '+919999999999': '123456',
-    '+911234567890': '123456',
   };
 
   static bool isTestPhone(String phone) =>
-      testPhoneOtps.containsKey(normalizePhone(phone));
+      Env.isDev && devTestPhoneOtps.containsKey(normalizePhone(phone));
 
-  /// Normalizes phone number to E.164 format (+91 default for 10-digit numbers)
+  /// Normalizes phone number to E.164 format (+91 default for 10-digit Indian numbers)
   static String normalizePhone(String phone) {
     String clean = phone.replaceAll(RegExp(r'[\s\-()]'), '');
-    if (!clean.startsWith('+')) {
+    if (clean.startsWith('00')) {
+      clean = '+${clean.substring(2)}';
+    } else if (clean.startsWith('0') && clean.length == 11) {
+      clean = '+91${clean.substring(1)}';
+    } else if (!clean.startsWith('+')) {
       clean = clean.length == 10 ? '+91$clean' : '+$clean';
     }
     return clean;
@@ -79,11 +98,11 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> sendPhoneOtp(String phone) async {
     final clean = normalizePhone(phone);
-    if (testPhoneOtps.containsKey(clean)) {
+    if (Env.isDev && devTestPhoneOtps.containsKey(clean)) {
       try {
         await client.auth.signInWithOtp(phone: clean);
       } catch (_) {
-        // Test numbers are verified directly via registerMember edge function
+        // Handled in dev
       }
       return;
     }
@@ -108,9 +127,67 @@ class SupabaseAuthRepository implements AuthRepository {
         'password': password,
       },
     );
-    // functions.invoke throws on network error; check for API-level errors.
-    final data = res.data as Map<String, dynamic>?;
-    if (data != null && data.containsKey('error')) {
+    final data = res.data;
+    if (data is Map && data.containsKey('error')) {
+      throw StateError(data['error'] as String);
+    }
+  }
+
+  @override
+  Future<String> requestPasswordReset(String username) async {
+    final cleanUser = username.trim().toLowerCase();
+    try {
+      final res = await client.functions.invoke(
+        'recoverPassword',
+        body: {
+          'action': 'request_otp',
+          'username': cleanUser,
+        },
+      );
+      final data = res.data;
+      if (data is Map) {
+        if (data.containsKey('error')) {
+          throw StateError(data['error'] as String);
+        }
+        return (data['masked_phone'] as String?) ?? 'your registered phone';
+      }
+      return 'your registered phone';
+    } catch (_) {
+      // Fallback: lookup profile phone directly if edge function is deploying
+      final profile = await client
+          .from('profiles')
+          .select('phone')
+          .eq('username', cleanUser)
+          .maybeSingle();
+      if (profile == null) throw StateError('No account found with this username');
+      final phone = profile['phone'] as String?;
+      if (phone == null || phone.isEmpty) {
+        throw StateError('No phone number is registered for this account');
+      }
+      await client.auth.signInWithOtp(phone: phone);
+      final masked = phone.length > 4 ? '${phone.substring(0, 3)} *** *** ${phone.substring(phone.length - 4)}' : '****';
+      return masked;
+    }
+  }
+
+  @override
+  Future<void> completePasswordReset({
+    required String username,
+    required String otpToken,
+    required String newPassword,
+  }) async {
+    final cleanUser = username.trim().toLowerCase();
+    final res = await client.functions.invoke(
+      'recoverPassword',
+      body: {
+        'action': 'reset_password',
+        'username': cleanUser,
+        'otp_token': otpToken.trim(),
+        'new_password': newPassword,
+      },
+    );
+    final data = res.data;
+    if (data is Map && data.containsKey('error')) {
       throw StateError(data['error'] as String);
     }
   }
@@ -124,7 +201,7 @@ class SupabaseAuthRepository implements AuthRepository {
     if (user == null) return null;
     final res = await client
         .from('profiles')
-        .select()
+        .select('user_id, gym_id, full_name, email, role, status, username, phone, phone_verified, is_profile_complete, created_at, updated_at')
         .eq('user_id', user.id)
         .maybeSingle();
     if (res == null) return null;
@@ -150,4 +227,3 @@ class SupabaseAuthRepository implements AuthRepository {
     return res != null;
   }
 }
-

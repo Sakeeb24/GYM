@@ -25,6 +25,9 @@ void main() {
         checkedInToday: 45,
         redListOpen: 3,
         renewalsDue: 8,
+        expiringMembers: 5,
+        monthlyRevenueCents: 12500000,
+        recentActivity: [],
       );
 
       await tester.pumpWidget(
@@ -42,10 +45,11 @@ void main() {
 
       // Verify Greeting & Header
       expect(find.textContaining('Dave Miller'), findsOneWidget);
-      expect(find.text("Ready for today's workout?"), findsOneWidget);
+      expect(find.text('Here is your real-time gym performance summary'), findsOneWidget);
 
       // Verify Attendance Card
-      expect(find.text('Attendance'), findsOneWidget);
+      expect(find.text('Today Check-in Rate'), findsOneWidget);
+      expect(find.text('37%'), findsOneWidget);
 
       // Verify Metric Grid Cards
       expect(find.text('Active Members'), findsOneWidget);
@@ -59,7 +63,7 @@ void main() {
       await tester.ensureVisible(memberBtn);
       await tester.tap(memberBtn);
       await tester.pumpAndSettle();
-      expect(find.text('Member pre-registration is managed in the Members tab.'), findsOneWidget);
+      expect(find.text('Member registration is available in the Members tab.'), findsOneWidget);
 
       // Clear previous snackbar before next tap
       tester.binding.scheduleFrame();
@@ -71,7 +75,7 @@ void main() {
       await tester.ensureVisible(scanBtn);
       await tester.tap(scanBtn);
       await tester.pumpAndSettle();
-      expect(find.text('Switch to Check-in tab to scan passes.'), findsOneWidget);
+      expect(find.text('Use the Check-in tab to scan passes.'), findsOneWidget);
     });
 
     testWidgets('MemberDashboardScreen renders digital pass and check-in button', (tester) async {

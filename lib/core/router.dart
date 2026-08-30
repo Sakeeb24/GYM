@@ -8,16 +8,26 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/auth/presentation/otp_screen.dart';
 import '../features/auth/presentation/account_setup_screen.dart';
+import '../features/auth/presentation/forgot_password_screen.dart';
 
 /// Routes accessible without authentication.
-const _publicRoutes = {'/login', '/register', '/otp', '/account-setup'};
+const _publicRoutes = {'/login', '/register', '/otp', '/account-setup', '/forgot-password'};
+
+class _RouterNotifier extends ChangeNotifier {
+  _RouterNotifier(WidgetRef ref) {
+    ref.listen(authStateProvider, (prev, next) => notifyListeners());
+  }
+}
 
 class AppRouter {
   AppRouter._();
 
   static GoRouter create(WidgetRef ref) {
+    final notifier = _RouterNotifier(ref);
+
     return GoRouter(
       initialLocation: '/login',
+      refreshListenable: notifier,
       redirect: (context, state) {
         final profileAsync = ref.read(authStateProvider);
         final profile = profileAsync.valueOrNull;
@@ -36,6 +46,11 @@ class AppRouter {
           path: '/login',
           name: 'login',
           builder: (context, state) => const LoginScreen(),
+        ),
+        GoRoute(
+          path: '/forgot-password',
+          name: 'forgot-password',
+          builder: (context, state) => const ForgotPasswordScreen(),
         ),
 
         // ── Registration flow (3 steps) ───────────────────────────────────

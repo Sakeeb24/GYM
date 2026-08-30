@@ -62,16 +62,16 @@ class OwnerDashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  "Ready for today's workout?",
+                  "Here is your real-time gym performance summary",
                   style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 16),
 
-                // ── 2. Simple Attendance Hero Card ────────────────────
+                // ── 2. Real Attendance Hero Card ──────────────────────
                 _AttendanceHeroCard(stats: stats),
                 const SizedBox(height: 16),
 
-                // ── 3. Simple 2x2 Metric Grid ─────────────────────────
+                // ── 3. Real 2x2 Metric Grid ───────────────────────────
                 _MetricGrid(stats: stats),
                 const SizedBox(height: 20),
 
@@ -87,7 +87,7 @@ class OwnerDashboardScreen extends ConsumerWidget {
                 _QuickActionsRow(),
                 const SizedBox(height: 20),
 
-                // ── 5. Recent Activity List ───────────────────────────
+                // ── 5. Real Recent Activity List ──────────────────────
                 Text(
                   'Recent Activity',
                   style: AppTypography.titleMedium.copyWith(
@@ -96,7 +96,7 @@ class OwnerDashboardScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                _RecentActivityList(),
+                _RecentActivityList(activity: stats.recentActivity),
                 const SizedBox(height: 16),
               ],
             ),
@@ -123,7 +123,7 @@ class _AttendanceHeroCard extends StatelessWidget {
 
     final computedRate = stats.totalMembers > 0
         ? ((stats.checkedInToday / stats.totalMembers) * 100).clamp(0, 100).toInt()
-        : 87;
+        : 0;
 
     return Container(
       decoration: BoxDecoration(
@@ -139,16 +139,16 @@ class _AttendanceHeroCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Attendance',
+                'Today Check-in Rate',
                 style: AppTypography.bodySmall.copyWith(
                   color: cs.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               Text(
-                'This month • ↑ 4.2%',
+                '${stats.checkedInToday} of ${stats.totalMembers} active members',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.success,
+                  color: AppColors.brand,
                   fontWeight: FontWeight.w600,
                   fontSize: 11,
                 ),
@@ -180,39 +180,51 @@ class _MetricGrid extends StatelessWidget {
   final DashboardStats stats;
   const _MetricGrid({required this.stats});
 
+  String _formatRevenue(int cents) {
+    if (cents <= 0) return '₹0';
+    final rupees = cents / 100;
+    if (rupees >= 100000) {
+      return '₹${(rupees / 100000).toStringAsFixed(1)}L';
+    }
+    if (rupees >= 1000) {
+      return '₹${(rupees / 1000).toStringAsFixed(1)}k';
+    }
+    return '₹${rupees.toStringAsFixed(0)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cards = [
       StatCard(
         data: StatCardData(
           title: 'Active Members',
-          value: '${stats.totalMembers > 0 ? stats.totalMembers : 1248}',
-          subtitle: '↑ 12% this month',
+          value: '${stats.totalMembers}',
+          subtitle: '${stats.totalMembers} enrolled',
           icon: const Icon(Icons.people_alt_outlined),
         ),
       ),
       StatCard(
         data: StatCardData(
           title: "Today's Check-ins",
-          value: '${stats.checkedInToday > 0 ? stats.checkedInToday : 186}',
-          subtitle: 'Peak: 6 - 8 PM',
+          value: '${stats.checkedInToday}',
+          subtitle: stats.checkedInToday == 1 ? '1 athlete visited' : '${stats.checkedInToday} visits today',
           icon: const Icon(Icons.qr_code_scanner_outlined),
         ),
       ),
       StatCard(
         data: StatCardData(
           title: 'Expiring Soon',
-          value: '${stats.renewalsDue > 0 ? stats.renewalsDue : 24}',
+          value: '${stats.expiringMembers}',
           subtitle: 'In next 7 days',
           icon: const Icon(Icons.timer_outlined),
         ),
       ),
       StatCard(
-        data: const StatCardData(
+        data: StatCardData(
           title: 'Monthly Revenue',
-          value: '₹84,500',
-          subtitle: '↑ 8.4% vs last month',
-          icon: Icon(Icons.currency_rupee_rounded),
+          value: _formatRevenue(stats.monthlyRevenueCents),
+          subtitle: 'MTD collections',
+          icon: const Icon(Icons.currency_rupee_rounded),
         ),
       ),
     ];
@@ -239,7 +251,7 @@ class _QuickActionsRow extends StatelessWidget {
             label: '+ Member',
             icon: Icons.person_add_alt_1_outlined,
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Member pre-registration is managed in the Members tab.')),
+              const SnackBar(content: Text('Member registration is available in the Members tab.')),
             ),
           ),
         ),
@@ -250,7 +262,7 @@ class _QuickActionsRow extends StatelessWidget {
             icon: Icons.qr_code_scanner_rounded,
             isPrimary: true,
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Switch to Check-in tab to scan passes.')),
+              const SnackBar(content: Text('Use the Check-in tab to scan passes.')),
             ),
           ),
         ),
@@ -260,7 +272,7 @@ class _QuickActionsRow extends StatelessWidget {
             label: 'Payments',
             icon: Icons.payments_outlined,
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('View billing history in Payments tab.')),
+              const SnackBar(content: Text('View transaction history in Payments tab.')),
             ),
           ),
         ),
@@ -332,8 +344,8 @@ class _ActionChip extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: isPrimary
-                      ? (isDark ? AppColors.brand : AppColors.brandDark)
-                      : cs.onSurface,
+                    ? (isDark ? AppColors.brand : AppColors.brandDark)
+                    : cs.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -347,16 +359,43 @@ class _ActionChip extends StatelessWidget {
 }
 
 class _RecentActivityList extends StatelessWidget {
+  final List<RecentActivityItem> activity;
+  const _RecentActivityList({required this.activity});
+
+  String _formatTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final activities = [
-      ('Marcus Vance', 'Check-in completed', '5 mins ago', Icons.check_circle_outline_rounded, AppColors.success),
-      ('Sarah Connor', 'Renewed Pro Plan (3 Months)', '18 mins ago', Icons.autorenew_rounded, AppColors.brand),
-      ('David Miller', 'Check-in completed', '32 mins ago', Icons.check_circle_outline_rounded, AppColors.success),
-      ('Elena Rostova', 'Membership expiring in 2 days', '1 hr ago', Icons.warning_amber_rounded, AppColors.warning),
-    ];
+    if (activity.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: AppRadii.r12,
+          border: Border.all(color: cs.outline),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.history_rounded, size: 32, color: cs.onSurfaceVariant.withAlpha(120)),
+              const SizedBox(height: 8),
+              Text(
+                'No check-in activity recorded yet today',
+                style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Material(
       color: cs.surface,
@@ -368,21 +407,24 @@ class _RecentActivityList extends StatelessWidget {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: activities.length,
+        itemCount: activity.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
-          final (name, action, time, icon, iconColor) = activities[i];
+          final item = activity[i];
           return ListTile(
             dense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-            leading: Icon(icon, color: iconColor, size: 18),
+            leading: const Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 18),
             title: Text(
-              name,
+              item.memberName,
               style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
             ),
-            subtitle: Text(action, style: AppTypography.bodySmall.copyWith(fontSize: 11)),
+            subtitle: Text(
+              'Check-in (${item.memberNumber}) • ${item.source}',
+              style: AppTypography.bodySmall.copyWith(fontSize: 11),
+            ),
             trailing: Text(
-              time,
+              _formatTime(item.checkInAt),
               style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 10),
             ),
           );

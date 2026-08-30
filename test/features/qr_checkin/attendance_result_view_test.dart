@@ -12,16 +12,18 @@ void main() {
         home: Scaffold(
           body: AttendanceResultView(
             outcome: CheckInOutcome.success,
+            streak: 5,
             onDismiss: () => dismissed = true,
           ),
         ),
       ),
     );
 
-    expect(find.text('Check-in recorded'), findsOneWidget);
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.text('CHECK-IN CONFIRMED'), findsOneWidget);
+    expect(find.text('CURRENT STREAK: 5 DAYS'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
 
-    await tester.tap(find.text('Back to scan'));
+    await tester.tap(find.text('Done'));
     await tester.pump();
     expect(dismissed, isTrue);
   });
@@ -37,8 +39,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Check-in denied'), findsOneWidget);
-    expect(find.text('Membership inactive. See a staff member.'), findsOneWidget);
+    expect(find.text('ACCESS DENIED'), findsOneWidget);
+    expect(find.text('Your membership is inactive or expired. Please see front desk.'), findsOneWidget);
   });
 
   testWidgets('AttendanceResultView shows duplicate outcome', (tester) async {
@@ -52,7 +54,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Already in'), findsOneWidget);
-    expect(find.text('This QR was scanned recently.'), findsOneWidget);
+    expect(find.text('ALREADY CHECKED IN'), findsOneWidget);
+    expect(find.text('Your attendance was already logged for this session.'), findsOneWidget);
   });
 }

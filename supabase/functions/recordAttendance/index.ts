@@ -1,4 +1,4 @@
-﻿import { createHmac } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import {
   requireAuth,
   jsonOk,
@@ -9,6 +9,7 @@ import { computeMembershipStatus, computeStreak, MembershipLike, roleCan } from 
 interface AttendanceReq {
   qrPayload: string;     // "<payload>.<hmac>" or dev payload
   source?: 'qr_self' | 'qr_assisted' | 'manual';
+  member_id?: string;    // If staff is performing assisted check-in
   idempotencyKey?: string;
 }
 
@@ -17,9 +18,9 @@ function b64urlDecode(input: string): Buffer {
 }
 
 // QR HMAC signature verification
-function verifyQr(payload: string, secret: string): { gym_id: string; exp: number } | null {
-  // Allow JSON parsing directly if dev/plain format
-  if (payload.trim().startsWith('{')) {
+function verifyQr(payload: string, secret: string, isProduction: boolean): { gym_id: string; exp: number } | null {
+  // Allow plain JSON parsing strictly in non-production dev environments
+  if (!isProduction && payload.trim().startsWith('{')) {
     try {
       const parsed = JSON.parse(payload);
       if (typeof parsed.gym_id === 'string') {
@@ -38,7 +39,7 @@ function verifyQr(payload: string, secret: string): { gym_id: string; exp: numbe
   if (expected !== sig) {
     return null;
   }
-  let parsed: { gym_id?: string; exp?: number };
+  let parsed: { gym_id?: string; exp?: number; issued_at?: number; nonce?: string };
   try {
     parsed = JSON.parse(b64urlDecode(body).toString('utf8'));
   } catch {
@@ -73,31 +74,45 @@ Deno.serve(async (req: Request) => {
     }
 
     const body: AttendanceReq = await req.json();
-    const qrSecret = await client.from('gym_settings').select('stripe_secret_key')
-      .eq('gym_id', gymId).maybeSingle();
+    const isProduction = Deno.env.get('ENVIRONMENT') === 'production';
 
-    const secret = qrSecret.data?.stripe_secret_key || gymId;
+    // Retrieve dedicated QR signing secret from env or gym_settings
+    const envQrSecret = Deno.env.get('QR_SIGNING_SECRET');
+    let secret = envQrSecret;
+    if (!secret) {
+      const qrSetting = await client.from('gym_settings').select('qr_signing_secret')
+        .eq('gym_id', gymId).maybeSingle();
+      secret = qrSetting.data?.qr_signing_secret || gymId;
+    }
 
-    const qr = verifyQr(body.qrPayload, secret);
+    const qr = verifyQr(body.qrPayload, secret, isProduction);
     if (!qr) return jsonError('Invalid or expired QR code', 400);
     if (qr.gym_id !== gymId) return jsonError('QR code does not belong to this gym', 403);
 
     const source = body.source ?? 'qr_self';
-    if (source === 'qr_assisted' && !roleCan(role, 'assistedCheckIn')) {
+    const isAssisted = source === 'qr_assisted' || Boolean(body.member_id);
+
+    if (isAssisted && !roleCan(role, 'assistedCheckIn')) {
       return jsonError('Forbidden: cannot record assisted check-in', 403);
     }
 
-    // Resolve the member row for the authenticated user (or assisted member)
-    const memberRes = await client.from('members')
+    // Resolve member: for assisted check-in, use body.member_id; for self, use auth user
+    let memberQuery = client.from('members')
       .select('id, status, profile_id, member_number, full_name, phone, email')
-      .eq('profile_id', user.id)
-      .eq('gym_id', gymId)
-      .maybeSingle();
+      .eq('gym_id', gymId);
+
+    if (isAssisted && body.member_id) {
+      memberQuery = memberQuery.eq('id', body.member_id);
+    } else {
+      memberQuery = memberQuery.eq('profile_id', user.id);
+    }
+
+    const memberRes = await memberQuery.maybeSingle();
 
     if (!memberRes.data) {
       return jsonError('Member record not found for this gym account', 404);
     }
-    const member = memberRes.data as { id: string; full_name: string; status: string };
+    const member = memberRes.data as { id: string; full_name: string; status: string; member_number: string };
 
     if (member.status === 'inactive') {
       return jsonError('Check-in denied: member is inactive. Please see front desk.', 403);
@@ -130,7 +145,7 @@ Deno.serve(async (req: Request) => {
     // R5: duplicate check-in prevention (idempotency key + 5 min grace window)
     const nowSec = Math.floor(Date.now() / 1000);
     const graceWindow = 60 * 5; // 5 minutes
-    const idem = body.idempotencyKey ?? `${user.id}:${nowSec - (nowSec % graceWindow)}`;
+    const idem = body.idempotencyKey ?? `${member.id}:${nowSec - (nowSec % graceWindow)}`;
     const dupRes = await client.from('attendance')
       .select('id, check_in_at').eq('idempotency_key', idem).maybeSingle();
     if (dupRes.data) {
@@ -144,7 +159,7 @@ Deno.serve(async (req: Request) => {
         gym_id: gymId,
         member_id: member.id,
         check_in_at: checkInTime,
-        source,
+        source: isAssisted ? 'qr_assisted' : 'qr_self',
         staff_id: roleCan(role, 'assistedCheckIn') ? user.id : null,
         idempotency_key: idem,
       })
@@ -158,59 +173,39 @@ Deno.serve(async (req: Request) => {
     // Accurate streak calculation across all historical check-ins
     const { data: pastAtt } = await client.from('attendance')
       .select('check_in_at')
+      .eq('gym_id', gymId)
       .eq('member_id', member.id)
-      .order('check_in_at', { ascending: false })
-      .limit(90);
+      .order('check_in_at', { ascending: false });
 
     const checkInDates = (pastAtt ?? [])
-      .map((r: { check_in_at: string }) => new Date(r.check_in_at))
+      .map((a: { check_in_at: string }) => new Date(a.check_in_at))
       .filter((d: Date) => !isNaN(d.getTime()));
 
-    const streakRes = computeStreak(checkInDates);
+    const streakResult = computeStreak(checkInDates);
 
-    await client.from('streaks').upsert({
-      member_id: member.id,
-      gym_id: gymId,
-      current_streak: streakRes.current,
-      longest_streak: streakRes.longest,
-      last_check_in_at: checkInTime,
-      last_updated: checkInTime,
-    });
-
-    // R4: a return voids any OPEN no-show case for this member
+    // Auto-resolve open no-show cases
     await client.from('no_show_cases')
       .update({
         status: 'resolved',
-        resolved_outcome: 'returned',
         resolved_at: checkInTime,
+        resolution_notes: `Auto-resolved on check-in via ${source}`,
       })
-      .eq('member_id', member.id)
       .eq('gym_id', gymId)
+      .eq('member_id', member.id)
       .eq('status', 'open');
-
-    // Audit log
-    await client.from('audit_logs').insert({
-      gym_id: gymId,
-      actor_user_id: user.id,
-      action: 'attendance.recorded',
-      entity: 'attendance',
-      entity_id: insertRes.data?.id,
-      detail: {
-        source,
-        member_id: member.id,
-        member_name: member.full_name,
-        current_streak: streakRes.current,
-        longest_streak: streakRes.longest,
-      },
-    }).catch(() => {});
 
     return jsonOk({
       attendance: insertRes.data,
-      duplicate: false,
+      member: {
+        id: member.id,
+        full_name: member.full_name,
+        member_number: member.member_number,
+      },
       membership_status: membershipStatus,
-      streak: streakRes,
-      member_name: member.full_name,
-    });
+      streak: streakResult.current,
+      longest_streak: streakResult.longest,
+      duplicate: false,
+    }, 201);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonError(`recordAttendance error: ${msg}`, 500);

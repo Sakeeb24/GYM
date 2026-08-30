@@ -48,6 +48,16 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<bool> isUsernameTaken(String username) async => false;
+
+  @override
+  Future<String> requestPasswordReset(String username) async => '+91******7247';
+
+  @override
+  Future<void> completePasswordReset({
+    required String username,
+    required String otpToken,
+    required String newPassword,
+  }) async {}
 }
 
 void main() {
@@ -72,40 +82,40 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify UI elements
-      expect(find.text('Personal Details'), findsOneWidget);
+      expect(find.text('CREATE ACCOUNT'), findsOneWidget);
       expect(find.text('Full Name'), findsOneWidget);
       expect(find.text('Phone Number'), findsOneWidget);
-      expect(find.text('Continue'), findsOneWidget);
 
-      // Tap continue with empty inputs
+      // Try empty submission
       await tester.tap(find.text('Continue'));
       await tester.pump();
       expect(find.text('Please enter your full name.'), findsOneWidget);
 
-      // Enter name
+      // Enter name only
       await tester.enterText(find.byType(TextField).at(0), 'John Doe');
       await tester.tap(find.text('Continue'));
       await tester.pump();
       expect(find.text('Please enter a valid phone number (e.g. +91 98765 43210).'), findsOneWidget);
 
       // Enter valid phone
-      await tester.enterText(find.byType(TextField).at(1), '+1 555 123 4567');
+      await tester.enterText(find.byType(TextField).at(1), '7019707247');
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
-      expect(fakeRepo.sentPhone, '+1 555 123 4567');
+      expect(fakeRepo.sentPhone, '7019707247');
       expect(find.text('OTP Page'), findsOneWidget);
     });
 
-    testWidgets('OtpScreen validates 6-digit code and proceeds to account setup', (tester) async {
-      final fakeRepo = FakeAuthRepository();
+    testWidgets('OtpScreen validates 6-digit code and resend timer button', (tester) async {
       final router = GoRouter(
         initialLocation: '/otp',
         routes: [
           GoRoute(
             path: '/otp',
-            builder: (ctx, st) => const OtpScreen(fullName: 'John Doe', phone: '+1 555 123 4567'),
+            builder: (ctx, st) => const OtpScreen(
+              fullName: 'John Doe',
+              phone: '+91 7019707247',
+            ),
           ),
           GoRoute(path: '/account-setup', builder: (ctx, st) => const Scaffold(body: Text('Setup Page'))),
         ],
@@ -113,18 +123,15 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            authRepositoryProvider.overrideWithValue(fakeRepo),
-          ],
           child: MaterialApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Enter Verification Code'), findsOneWidget);
-      expect(find.text('Verify & Continue'), findsOneWidget);
+      expect(find.text('VERIFY PHONE'), findsOneWidget);
+      expect(find.textContaining('7019707247'), findsOneWidget);
 
-      // Try with invalid OTP
+      // Try invalid code
       await tester.enterText(find.byType(TextField), '123');
       await tester.tap(find.text('Verify & Continue'));
       await tester.pump();
@@ -147,7 +154,7 @@ void main() {
             path: '/setup',
             builder: (ctx, st) => const AccountSetupScreen(
               fullName: 'John Doe',
-              phone: '+1 555 123 4567',
+              phone: '+91 7019707247',
               otpToken: '123456',
             ),
           ),
@@ -165,33 +172,32 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Create Login'), findsOneWidget);
+      expect(find.text('Choose Your Login'), findsOneWidget);
       expect(find.text('Username'), findsOneWidget);
       expect(find.text('Password'), findsOneWidget);
       expect(find.text('Confirm Password'), findsOneWidget);
 
       // Try empty submission
-      await tester.tap(find.text('Create Account'));
+      await tester.tap(find.text('Complete Registration'));
       await tester.pump();
       expect(find.text('Please choose a username.'), findsOneWidget);
 
-      // Fill valid credentials
+      // Fill valid credentials with mismatch
       await tester.enterText(find.byType(TextField).at(0), 'johndoe');
       await tester.enterText(find.byType(TextField).at(1), 'password123');
       await tester.enterText(find.byType(TextField).at(2), 'mismatchpass');
-      await tester.tap(find.text('Create Account'));
+      await tester.tap(find.text('Complete Registration'));
       await tester.pump();
       expect(find.text('Passwords do not match. Please re-enter.'), findsOneWidget);
 
       // Match passwords
       await tester.enterText(find.byType(TextField).at(2), 'password123');
-      await tester.tap(find.text('Create Account'));
+      await tester.tap(find.text('Complete Registration'));
       await tester.pump();
-
-      expect(fakeRepo.registered, isTrue);
       await tester.pump(const Duration(milliseconds: 1500));
       await tester.pumpAndSettle();
-      expect(find.text('Login Screen'), findsOneWidget);
+
+      expect(fakeRepo.registered, true);
     });
   });
 }

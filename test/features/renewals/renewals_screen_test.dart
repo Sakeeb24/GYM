@@ -13,6 +13,7 @@ void main() {
       userId: 'user-1',
       gymId: 'gym-1',
       username: 'coach_dave',
+      fullName: 'Dave Miller',
       role: AppRole.owner,
     );
 
@@ -21,7 +22,7 @@ void main() {
         'id': 'ord-1',
         'due_at': '2026-09-05T00:00:00Z',
         'amount_cents': 5000,
-        'currency': 'USD',
+        'currency': 'INR',
         'reminder_stage': 'd_7',
         'status': 'pending',
       },
@@ -29,7 +30,7 @@ void main() {
         'id': 'ord-2',
         'due_at': '2026-09-01T00:00:00Z',
         'amount_cents': 9900,
-        'currency': 'USD',
+        'currency': 'INR',
         'reminder_stage': 'd_3',
         'status': 'paid',
       },
@@ -54,8 +55,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Renewals'), findsOneWidget);
-      expect(find.text('Membership Renewal • \$50.00 USD'), findsOneWidget);
-      expect(find.text('Membership Renewal • \$99.00 USD'), findsOneWidget);
+      expect(find.text('Membership Renewal'), findsNWidgets(2));
+      expect(find.text('₹50.00 INR'), findsOneWidget);
+      expect(find.text('₹99.00 INR'), findsOneWidget);
       expect(find.text('PENDING'), findsOneWidget);
       expect(find.text('PAID'), findsOneWidget);
     });
@@ -69,7 +71,7 @@ void main() {
               gymId: 'gym-1',
               role: AppRole.owner,
               userId: 'user-1',
-            )).overrideWith((ref) => Stream.value([])),
+            )).overrideWith((ref) => Stream.value(const [])),
           ],
           child: const MaterialApp(
             home: RenewalsScreen(),
@@ -78,7 +80,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No pending membership renewals due.'), findsOneWidget);
+      expect(find.text('All athlete memberships are up to date! No pending renewals.'), findsOneWidget);
     });
   });
 }

@@ -63,9 +63,7 @@ class PaymentsScreen extends ConsumerWidget {
                 ? acc + ((p['amount_cents'] as num?)?.toInt() ?? 0)
                 : acc,
           );
-          final formattedRevenue = (totalRevenueCents > 0)
-              ? (totalRevenueCents / 100).toStringAsFixed(2)
-              : '84,500.00';
+          final formattedRevenue = (totalRevenueCents / 100).toStringAsFixed(2);
 
           return RefreshIndicator(
             onRefresh: () async => ref.refresh(recentPaymentsProvider((
@@ -95,16 +93,16 @@ class PaymentsScreen extends ConsumerWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Monthly Revenue',
+                                'Total Revenue Collections',
                                 style: AppTypography.bodySmall.copyWith(
                                   color: cs.onSurfaceVariant,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               Text(
-                                '↑ 12.8% this month',
+                                '${payments.where((p) => p['status'] == 'succeeded').length} settled payments',
                                 style: AppTypography.bodySmall.copyWith(
-                                  color: AppColors.success,
+                                  color: AppColors.brand,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 11,
                                 ),
@@ -121,7 +119,7 @@ class PaymentsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Active Gym Billing Engine',
+                            'Active Gym Billing Engine (INR)',
                             style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
                           ),
                         ],
@@ -140,7 +138,7 @@ class PaymentsScreen extends ConsumerWidget {
 
                   if (payments.isEmpty)
                     const AppEmptyState(
-                      message: 'No transactions recorded yet.',
+                      message: 'No payment transactions recorded yet.',
                       icon: Icons.receipt_long_rounded,
                     )
                   else
@@ -153,7 +151,7 @@ class PaymentsScreen extends ConsumerWidget {
                         final p = payments[i];
                         final status = p['status'] as String? ?? 'succeeded';
                         final amount = ((p['amount_cents'] as num? ?? 0) / 100).toStringAsFixed(2);
-                        final currency = (p['currency'] as String? ?? 'USD').toUpperCase();
+                        final currency = (p['currency'] as String? ?? 'INR').toUpperCase();
                         final color = switch (status) {
                           'succeeded' => AppColors.statusActive,
                           'failed' => AppColors.statusExpired,
@@ -189,7 +187,7 @@ class PaymentsScreen extends ConsumerWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      p['provider_reference'] as String? ?? 'Pro Membership Subscription',
+                                      p['provider_reference'] as String? ?? 'Gym Membership Fee',
                                       style: AppTypography.titleMedium.copyWith(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
@@ -206,7 +204,7 @@ class PaymentsScreen extends ConsumerWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    '\$$amount $currency',
+                                    '₹$amount $currency',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13,
@@ -214,7 +212,7 @@ class PaymentsScreen extends ConsumerWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  AppBadge(label: status, color: color),
+                                  AppBadge(label: status.toUpperCase(), color: color),
                                 ],
                               ),
                             ],
@@ -242,11 +240,11 @@ class PaymentsScreen extends ConsumerWidget {
               backgroundColor: AppColors.brand,
               foregroundColor: Colors.black,
               onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Refunds are processed securely via the Stripe portal.')),
+                const SnackBar(content: Text('Refunds and billing settings are managed via gym administration.')),
               ),
               icon: const Icon(Icons.receipt_long_rounded, size: 18),
               label: const Text(
-                'Stripe Portal',
+                'Billing Portal',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
               ),
             )

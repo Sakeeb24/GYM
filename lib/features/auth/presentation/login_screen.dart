@@ -5,9 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/app_error_mapper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth_notifier.dart';
 import 'auth_widgets.dart';
 
@@ -35,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     setState(() => _localError = null);
     final u = _username.text.trim();
-    final p = _password.text.trim();
+    final p = _password.text; // Do NOT trim password
 
     if (u.isEmpty || p.isEmpty) {
       setState(() => _localError = 'Please enter your username and password.');
@@ -47,11 +47,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authActionsProvider).signInWithUsername(u, p);
     } catch (e) {
       if (mounted) {
-        String msg = e.toString().replaceAll('Exception: ', '').replaceAll('StateError: ', '');
-        if (e is AuthApiException) {
-          msg = e.message;
-        }
-        setState(() => _localError = msg);
+        setState(() => _localError = AppErrorMapper.toUserMessage(e));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -98,21 +94,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Center(
                     child: Text(
                       'LIFTFLOW',
-                      style: AppTypography.displayLarge.copyWith(
-                        fontSize: 26,
+                      style: AppTypography.labelAthletic.copyWith(
+                        fontSize: 22,
+                        letterSpacing: 3.5,
+                        color: isDark ? AppColors.brand : AppColors.brandDark,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 2.0,
-                        color: cs.onSurface,
                       ),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Center(
                     child: Text(
-                      'Your fitness. Your progress.',
-                      style: AppTypography.bodyMedium.copyWith(
+                      'GYM MANAGEMENT PLATFORM',
+                      style: AppTypography.bodySmall.copyWith(
                         color: cs.onSurfaceVariant,
-                        fontSize: 13,
+                        fontSize: 10,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -120,17 +118,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // ── 3. Username Field ────────────────────────────────
                   AppTextField(
-                    controller: _username,
                     label: 'Username',
-                    keyboard: TextInputType.text,
-                    hint: 'Enter your username',
+                    controller: _username,
+                    hint: 'e.g. alex_runner',
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
 
-                  // ── 4. Password Field with Eye Icon ──────────────────
+                  // ── 4. Password Field ────────────────────────────────
                   AppTextField(
-                    controller: _password,
                     label: 'Password',
+                    controller: _password,
                     obscure: _obscure,
                     hint: 'Enter your password',
                     suffixIcon: IconButton(
@@ -148,11 +145,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please contact your gym front desk to reset your password.')),
-                        );
-                      },
+                      onPressed: () => context.push('/forgot-password'),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                         minimumSize: Size.zero,

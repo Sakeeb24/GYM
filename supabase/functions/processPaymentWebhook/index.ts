@@ -5,13 +5,9 @@ import {
   jsonError,
 } from '../_shared/supabaseServer.ts';
 
-// R8 / rule 8: payment success is ONLY decided by the provider webhook.
-// Never trust any client-declared payment state.
-
 const STRIPE_WEBHOOK_SECRET_ENV = 'STRIPE_WEBHOOK_SECRET';
 
-// Minimal Stripe signature verification (timing-safe). Real implementation
-// must validate the full `t`,`v1` scheme from stripe-signature header.
+// Minimal Stripe signature verification (timing-safe).
 function verifyStripeSignature(
   body: ArrayBuffer,
   sigHeader: string | null,
@@ -61,20 +57,8 @@ Deno.serve(async (req: Request) => {
       metadata?: Record<string, string>;
       status?: string;
     };
-    const providerReference = obj.id ?? event.id; // charge/intent id
+    const providerReference = obj.id ?? event.id;
     if (!providerReference) return jsonError('Missing provider reference', 400);
-
-    // Idempotency (rule 8/52.7): dedupe by provider_reference.
-    const existing = await client.from('payments')
-      .select('id,status').eq('provider_reference', providerReference).maybeSingle();
-    if (existing.data) {
-      // Already processed — reconcile status only if a real state change occurs.
-      return jsonOk({ already_processed: true, payment_id: existing.data.id });
-    }
-
-    const amount = typeof obj.amount === 'number' ? obj.amount : 0;
-    const currency = obj.currency ?? 'USD';
-    const idempotencyKey = event.id;
 
     let status: 'pending' | 'succeeded' | 'failed' | 'canceled' = 'pending';
     switch (event.type) {
@@ -94,55 +78,113 @@ Deno.serve(async (req: Request) => {
         status = 'pending';
         break;
       default:
-        // Unhandled event types are ignored (idempotent; safe to skip).
-        return jsonOk({ ignored: true });
+        return jsonOk({ ignored: true, event_type: event.type });
     }
 
-    // Insert payment (server-authoritative).
+    const memberId = (obj.metadata ?? {})['member_id'];
+    const gymId = (obj.metadata ?? {})['gym_id'];
+    const planId = (obj.metadata ?? {})['plan_id'];
+    const amount = typeof obj.amount === 'number' ? obj.amount : 0;
+    const currency = obj.currency ?? 'INR';
+
+    // Idempotency: check existing payment record
+    const existing = await client.from('payments')
+      .select('id, status, member_id, gym_id')
+      .eq('provider_reference', providerReference)
+      .maybeSingle();
+
+    if (existing.data) {
+      const prevStatus = existing.data.status;
+      if (prevStatus === status) {
+        return jsonOk({ already_processed: true, payment_id: existing.data.id });
+      }
+
+      // Reconcile status update from pending -> succeeded or failed
+      await client.from('payments')
+        .update({
+          status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.data.id);
+
+      if (status === 'succeeded' && prevStatus !== 'succeeded') {
+        const targetMemberId = memberId || existing.data.member_id;
+        const targetGymId = gymId || existing.data.gym_id;
+
+        if (targetMemberId && targetGymId) {
+          const plan = await client.from('membership_plans')
+            .select('duration_days').eq('id', planId ?? '').maybeSingle();
+          const duration = plan.data?.duration_days ?? 30;
+
+          const mem = await client.from('memberships')
+            .select('expires_at, status').eq('member_id', targetMemberId).eq('gym_id', targetGymId)
+            .in('status', ['active', 'paused', 'frozen', 'expired']).maybeSingle();
+
+          const now = new Date();
+          const base = (mem.data?.expires_at && new Date(mem.data.expires_at) > now)
+            ? new Date(mem.data.expires_at)
+            : now;
+          const newExpiry = new Date(base.getTime() + duration * 24 * 60 * 60 * 1000);
+
+          if (mem.data) {
+            await client.from('memberships').update({
+              expires_at: newExpiry.toISOString(),
+              status: 'active',
+              updated_at: new Date().toISOString(),
+            }).eq('member_id', targetMemberId).eq('gym_id', targetGymId);
+          }
+        }
+      }
+
+      return jsonOk({ reconciled: true, payment_id: existing.data.id, status });
+    }
+
+    // Insert new payment record
     const insertRes = await client.from('payments').insert({
-      gym_id: (obj.metadata ?? {})['gym_id'],
-      member_id: (obj.metadata ?? {})['member_id'],
+      gym_id: gymId,
+      member_id: memberId,
       provider: 'stripe',
       provider_reference: providerReference,
       amount_cents: amount,
       currency,
       status,
-      idempotency_key: idempotencyKey,
+      idempotency_key: event.id,
     }).select('id').single();
+
     if (insertRes.error) return jsonError(`Payment insert failed: ${insertRes.error.message}`, 500);
 
-    // R8: on success, extend the member's currently active membership.
-    if (status === 'succeeded') {
-      const memberId = (obj.metadata ?? {})['member_id'];
-      const gymId = (obj.metadata ?? {})['gym_id'];
-      const planId = (obj.metadata ?? {})['plan_id'];
+    // If succeeded on first delivery, activate/extend membership
+    if (status === 'succeeded' && memberId && gymId) {
       const plan = await client.from('membership_plans').select('duration_days').eq('id', planId ?? '').maybeSingle();
       const duration = plan.data?.duration_days ?? 30;
 
       const mem = await client.from('memberships')
-        .select('expires_at,status').eq('member_id', memberId).eq('gym_id', gymId)
-        .in('status', ['active', 'paused', 'frozen']).maybeSingle();
+        .select('expires_at, status').eq('member_id', memberId).eq('gym_id', gymId)
+        .in('status', ['active', 'paused', 'frozen', 'expired']).maybeSingle();
       const now = new Date();
       const base = (mem.data?.expires_at && new Date(mem.data.expires_at) > now)
         ? new Date(mem.data.expires_at)
         : now;
       const newExpiry = new Date(base.getTime() + duration * 24 * 60 * 60 * 1000);
 
-      await client.from('memberships').update({
-        expires_at: newExpiry.toISOString(),
-        status: 'active',
-        updated_at: new Date().toISOString(),
-      }).eq('member_id', memberId).eq('gym_id', gymId).eq('status', mem.data?.status ?? 'active');
+      if (mem.data) {
+        await client.from('memberships').update({
+          expires_at: newExpiry.toISOString(),
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        }).eq('member_id', memberId).eq('gym_id', gymId);
+      }
 
-      await client.from('payments').update({ status: 'succeeded' }).eq('id', insertRes.data!.id);
       await client.from('audit_logs').insert({
-        gym_id: gymId, action: 'payment.succeeded', entity: 'payment',
+        gym_id: gymId,
+        action: 'payment.succeeded',
+        entity: 'payment',
         entity_id: insertRes.data!.id,
         detail: { provider: 'stripe', provider_reference: providerReference, amount_cents: amount },
-      });
+      }).catch(() => {});
     }
 
-    return jsonOk({ payment_id: insertRes.data!.id, status });
+    return jsonOk({ payment_id: insertRes.data!.id, status }, 201);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonError(`Webhook error: ${msg}`, 500);

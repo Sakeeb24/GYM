@@ -11,6 +11,7 @@ Widget buildLoginSubject() {
     routes: [
       GoRoute(path: '/login', builder: (ctx, st) => const LoginScreen()),
       GoRoute(path: '/register', builder: (ctx, st) => const Scaffold(body: Text('Register'))),
+      GoRoute(path: '/forgot-password', builder: (ctx, st) => const Scaffold(body: Text('Forgot Password Screen'))),
     ],
   );
   return ProviderScope(child: MaterialApp.router(routerConfig: router));
@@ -25,7 +26,7 @@ void main() {
     expect(find.text('Password'), findsOneWidget);
     expect(find.text('Email'), findsNothing);
     expect(find.text('LIFTFLOW'), findsOneWidget);
-    expect(find.text('Your fitness. Your progress.'), findsOneWidget);
+    expect(find.text('GYM MANAGEMENT PLATFORM'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
     expect(find.text('Forgot password?'), findsOneWidget);
@@ -51,5 +52,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Register'), findsOneWidget);
+  });
+
+  testWidgets('LoginScreen navigates to /forgot-password on Forgot password tap', (tester) async {
+    await tester.pumpWidget(buildLoginSubject());
+    await tester.pumpAndSettle();
+
+    final forgotBtn = find.text('Forgot password?');
+    await tester.ensureVisible(forgotBtn);
+    await tester.tap(forgotBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Forgot Password Screen'), findsOneWidget);
   });
 }

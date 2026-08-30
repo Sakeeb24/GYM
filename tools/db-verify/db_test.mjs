@@ -185,6 +185,29 @@ async function main() {
   assert('Gym B sees 0 attendance (none in its tenant)', att.rows[0].n === 0, 'got ' + att.rows[0].n);
   await resetRole();
 
+  console.log('\n# TEST GROUP: username uniqueness enforcement');
+  await db.exec(`update profiles set username = 'owner_a' where user_id = '${Users.ownerA}';`);
+  await expectReject(db, 'duplicate username is blocked by database constraint', () =>
+    db.exec(`update profiles set username = 'owner_a' where user_id = '${Users.memberA1}';`));
+
+  console.log('\n# TEST GROUP: server-side get_dashboard_stats RPC');
+  await asGym(Gyms.A);
+  const dashStats = await db.query(`select get_dashboard_stats('${Gyms.A}') as stats;`);
+  assert('get_dashboard_stats returns valid json object', typeof dashStats.rows[0].stats === 'object');
+  assert('dashboard stats includes total_members', typeof dashStats.rows[0].stats.total_members === 'number');
+  assert('dashboard stats includes monthly_revenue_cents', typeof dashStats.rows[0].stats.monthly_revenue_cents === 'number');
+
+  // Verify Gym A cannot fetch Gym B dashboard stats
+  await expectReject(db, 'cross-tenant dashboard stats access is blocked', () =>
+    db.query(`select get_dashboard_stats('${Gyms.B}') as stats;`));
+
+  console.log('\n# TEST GROUP: server-side get_analytics_trends RPC');
+  const analyticsTrends = await db.query(`select get_analytics_trends('${Gyms.A}', 30) as trends;`);
+  assert('get_analytics_trends returns valid json object', typeof analyticsTrends.rows[0].trends === 'object');
+  assert('analytics trends includes retention_rate', typeof analyticsTrends.rows[0].trends.retention_rate === 'number');
+  assert('analytics trends includes daily_trend array', Array.isArray(analyticsTrends.rows[0].trends.daily_trend));
+  await resetRole();
+
   console.log('\n=========================================');
   console.log('DB TEST SUMMARY: ' + PASS + ' passed, ' + FAIL + ' failed');
   console.log('=========================================');

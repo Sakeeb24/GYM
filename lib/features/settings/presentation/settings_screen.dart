@@ -7,6 +7,7 @@ import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/app_error_mapper.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_error_state.dart';
 import '../../../core/widgets/app_loading_state.dart';
@@ -17,7 +18,7 @@ final gymSettingsProvider = FutureProvider.family<Map<String, dynamic>, String>(
   final client = AppSupabase.client;
   final res = await client
       .from('gym_settings')
-      .select('*')
+      .select('inactivity_threshold_days, qr_session_grace_minutes, streak_required_consecutive, qr_mode, reminder_windows_days, renewal_post_expiry_days, notification_channels, daily_summary_time')
       .eq('gym_id', gymId)
       .maybeSingle();
   return res != null ? Map<String, dynamic>.from(res as Map) : <String, dynamic>{};
@@ -49,6 +50,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_initialized) return;
     _inactivity.text = (data['inactivity_threshold_days'] ?? 7).toString();
     _graceMinutes.text = (data['qr_session_grace_minutes'] ?? 5).toString();
+
+    final channels = data['notification_channels'];
+    if (channels is List) {
+      _whatsappAlerts = channels.contains('whatsapp');
+      _emailAlerts = channels.contains('email');
+    }
     _initialized = true;
   }
 
@@ -57,23 +64,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       final inactivity = int.tryParse(_inactivity.text) ?? 7;
       final grace = int.tryParse(_graceMinutes.text) ?? 5;
+      final channels = <String>[];
+      if (_whatsappAlerts) channels.add('whatsapp');
+      if (_emailAlerts) channels.add('email');
 
       await AppSupabase.client.from('gym_settings').update({
         'inactivity_threshold_days': inactivity,
         'qr_session_grace_minutes': grace,
+        'notification_channels': channels,
       }).eq('gym_id', gymId);
 
       ref.invalidate(gymSettingsProvider(gymId));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved successfully!')),
+          const SnackBar(
+            content: Text('Settings saved successfully!'),
+            backgroundColor: AppColors.brand,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save settings: $e')),
+          SnackBar(
+            content: Text(AppErrorMapper.toUserMessage(e)),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -126,7 +143,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   ? profile.fullName![0]
                                   : profile.username?[0] ?? 'A')
                               .toUpperCase(),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                             color: AppColors.brand,

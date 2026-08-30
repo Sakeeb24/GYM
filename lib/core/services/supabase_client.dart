@@ -21,5 +21,6 @@ class AppSupabase {
     _initialized = true;
   }
 
+  static bool get isConfigured => _initialized;
   static SupabaseClient get client => Supabase.instance.client;
 }

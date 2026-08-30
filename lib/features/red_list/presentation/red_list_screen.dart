@@ -45,6 +45,24 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
         data: (cases) {
           final categories = ['ALL', 'AT RISK', 'EXPIRING SOON', 'OVERDUE', 'INACTIVE'];
 
+          final filteredCases = cases.where((c) {
+            if (_activeCategory == 'ALL') return true;
+            final reason = c.reason.toLowerCase();
+            if (_activeCategory == 'AT RISK') {
+              return reason.contains('inactive') || reason.contains('risk') || reason.contains('absence');
+            }
+            if (_activeCategory == 'EXPIRING SOON') {
+              return reason.contains('expir');
+            }
+            if (_activeCategory == 'OVERDUE') {
+              return reason.contains('overdue') || reason.contains('unpaid') || reason.contains('payment');
+            }
+            if (_activeCategory == 'INACTIVE') {
+              return c.status.toLowerCase() == 'open';
+            }
+            return true;
+          }).toList();
+
           return Column(
             children: [
               // Category Filter Bar
@@ -83,22 +101,30 @@ class _RedListScreenState extends ConsumerState<RedListScreen> {
 
               // Cases List
               Expanded(
-                child: cases.isEmpty
+                child: filteredCases.isEmpty
                     ? const AppEmptyState(
-                        message: 'All athletes are active and training! No retention alerts.',
+                        message: 'No retention alerts matching this filter category.',
                         icon: Icons.check_circle_outline_rounded,
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        itemCount: cases.length,
+                        itemCount: filteredCases.length,
                         separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (c, i) => _CleanRetentionCard(
-                          caseItem: cases[i],
+                          caseItem: filteredCases[i],
                           onResolve: () async {
-                            await ref.read(noShowRepositoryProvider).resolveCase(cases[i].id, 'resolved', 'returned');
+                            await ref.read(noShowRepositoryProvider).resolveCase(
+                                  filteredCases[i].id,
+                                  'resolved',
+                                  'Outreach completed / renewed',
+                                );
+                            ref.invalidate(openCasesProvider(profile.gymId));
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Resolved retention case for ${cases[i].memberName}')),
+                                SnackBar(
+                                  content: Text('Resolved retention case for ${filteredCases[i].memberName}'),
+                                  backgroundColor: AppColors.brand,
+                                ),
                               );
                             }
                           },
@@ -127,9 +153,18 @@ class _CleanRetentionCard extends StatelessWidget {
     required this.onResolve,
   });
 
+  String _formatLastSeen(DateTime? dt) {
+    if (dt == null) return 'No recorded visits';
+    final days = DateTime.now().difference(dt).inDays;
+    if (days <= 0) return 'Visited today';
+    if (days == 1) return 'Visited yesterday';
+    return '$days days ago';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final lastSeenStr = _formatLastSeen(caseItem.lastSeenAt);
 
     return Container(
       decoration: BoxDecoration(
@@ -145,9 +180,9 @@ class _CleanRetentionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                children: [
-                  const Icon(Icons.local_fire_department_rounded, color: AppColors.flameStreak, size: 16),
-                  const SizedBox(width: 4),
+                children: const [
+                  Icon(Icons.local_fire_department_rounded, color: AppColors.flameStreak, size: 16),
+                  SizedBox(width: 4),
                   Text(
                     'At Risk',
                     style: TextStyle(
@@ -159,7 +194,7 @@ class _CleanRetentionCard extends StatelessWidget {
                 ],
               ),
               AppBadge(
-                label: caseItem.status,
+                label: caseItem.status.toUpperCase(),
                 color: AppColors.warning,
               ),
             ],
@@ -176,17 +211,8 @@ class _CleanRetentionCard extends StatelessWidget {
           const SizedBox(height: 4),
 
           Text(
-            'Last visit: 12 days ago • Reason: ${caseItem.reason}',
+            'Last visit: $lastSeenStr • Reason: ${caseItem.reason}',
             style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Membership: Expires in 3 days',
-            style: const TextStyle(
-              color: AppColors.warning,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-            ),
           ),
           const SizedBox(height: 12),
 
@@ -200,7 +226,7 @@ class _CleanRetentionCard extends StatelessWidget {
                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14),
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Opening WhatsApp outreach for ${caseItem.memberName}...')),
+                      SnackBar(content: Text('Opening outreach channel for ${caseItem.memberName}...')),
                     );
                   },
                 ),
@@ -208,7 +234,7 @@ class _CleanRetentionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: AppButton(
-                  text: 'Renew & Resolve',
+                  text: 'Resolve',
                   variant: AppButtonVariant.filled,
                   height: 38,
                   icon: const Icon(Icons.check_circle_outline_rounded, size: 14),

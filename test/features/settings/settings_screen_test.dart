@@ -43,6 +43,16 @@ class MockAuthRepo implements AuthRepository {
 
   @override
   Future<bool> isUsernameTaken(String username) async => false;
+
+  @override
+  Future<String> requestPasswordReset(String username) async => '+91******7247';
+
+  @override
+  Future<void> completePasswordReset({
+    required String username,
+    required String otpToken,
+    required String newPassword,
+  }) async {}
 }
 
 void main() {

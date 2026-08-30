@@ -16,14 +16,6 @@ import '../../auth/auth_notifier.dart';
 final renewalsProvider = StreamProvider.family<List<Map<String, dynamic>>, ({String gymId, AppRole role, String userId})>((ref, args) {
   final client = AppSupabase.client;
 
-  if (args.role == AppRole.member) {
-    return client
-        .from('renewal_orders')
-        .stream(primaryKey: ['id'])
-        .eq('gym_id', args.gymId)
-        .map((rows) => rows);
-  }
-
   return client
       .from('renewal_orders')
       .stream(primaryKey: ['id'])
@@ -60,7 +52,7 @@ class RenewalsScreen extends ConsumerWidget {
         data: (orders) {
           if (orders.isEmpty) {
             return const AppEmptyState(
-              message: 'No pending membership renewals due.',
+              message: 'All athlete memberships are up to date! No pending renewals.',
               icon: Icons.check_circle_outline_rounded,
             );
           }
@@ -73,7 +65,7 @@ class RenewalsScreen extends ConsumerWidget {
               final o = orders[index];
               final due = DateTime.tryParse(o['due_at'] as String? ?? '');
               final amount = ((o['amount_cents'] as num? ?? 0) / 100).toStringAsFixed(2);
-              final currency = (o['currency'] as String? ?? 'USD').toUpperCase();
+              final currency = (o['currency'] as String? ?? 'INR').toUpperCase();
               final stage = (o['reminder_stage'] as String? ?? 'pending').replaceAll('_', ' ').toLowerCase();
               final status = (o['status'] as String? ?? 'pending').toLowerCase();
 
@@ -99,16 +91,30 @@ class RenewalsScreen extends ConsumerWidget {
                     child: const Icon(Icons.timer_outlined, color: AppColors.warning, size: 18),
                   ),
                   title: Text(
-                    'Membership Renewal • \$$amount $currency',
-                    style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
+                    'Membership Renewal',
+                    style: AppTypography.titleMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
                   subtitle: Text(
-                    'Due date: $dateStr • Stage: $stage',
+                    'Due: $dateStr • Stage: $stage',
                     style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
                   ),
-                  trailing: AppBadge(
-                    label: status,
-                    color: status == 'paid' ? AppColors.statusActive : AppColors.statusExpiring,
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '₹$amount $currency',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      const SizedBox(height: 2),
+                      AppBadge(
+                        label: status.toUpperCase(),
+                        color: status == 'pending' ? AppColors.warning : AppColors.brand,
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -118,7 +124,11 @@ class RenewalsScreen extends ConsumerWidget {
         loading: () => const AppLoadingState(),
         error: (e, _) => AppErrorState(
           message: 'Failed to load renewals',
-          onRetry: () => ref.invalidate(renewalsProvider),
+          onRetry: () => ref.refresh(renewalsProvider((
+            gymId: profile.gymId,
+            role: profile.role,
+            userId: profile.userId,
+          )).future),
         ),
       ),
     );

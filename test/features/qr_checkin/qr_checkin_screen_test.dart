@@ -32,7 +32,7 @@ void main() {
       expect(detectedPayload, contains('00000000-0000-0000-0000-00000000000A'));
     });
 
-    testWidgets('AttendanceResultView handles dismiss callback on Back to scan button', (tester) async {
+    testWidgets('AttendanceResultView handles dismiss callback on Done button', (tester) async {
       bool dismissed = false;
 
       await tester.pumpWidget(
@@ -48,11 +48,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Check-in recorded'), findsOneWidget);
+      expect(find.text('CHECK-IN CONFIRMED'), findsOneWidget);
       expect(find.text('ALEX ATHLETE'), findsOneWidget);
-      expect(find.text('Back to scan'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
 
-      await tester.tap(find.text('Back to scan'));
+      await tester.tap(find.text('Done'));
       await tester.pump();
 
       expect(dismissed, isTrue);

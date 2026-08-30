@@ -11,12 +11,14 @@ import 'attendance_repository.dart';
 class AttendanceResultView extends StatelessWidget {
   final CheckInOutcome outcome;
   final String? memberName;
+  final int streak;
   final VoidCallback? onDismiss;
 
   const AttendanceResultView({
     super.key,
     required this.outcome,
     this.memberName,
+    this.streak = 1,
     this.onDismiss,
   });
 
@@ -119,7 +121,7 @@ class AttendanceResultView extends StatelessWidget {
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          'CURRENT STREAK: 24 DAYS',
+                          streak > 1 ? 'CURRENT STREAK: $streak DAYS' : 'SESSION LOGGED: ACTIVE',
                           style: AppTypography.labelAthletic.copyWith(
                             color: AppColors.flameStreak,
                             fontSize: 10,
@@ -139,42 +141,56 @@ class AttendanceResultView extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   subtitle,
-                  style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontSize: 13,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
+              const SizedBox(height: 28),
 
-              const SizedBox(height: 24),
-
-              // Dismiss / Back to scan CTA
-              if (onDismiss != null)
-                AppButton(
-                  text: 'Back to scan',
-                  onPressed: onDismiss,
-                  fullWidth: true,
-                  variant: isSuccess ? AppButtonVariant.filled : AppButtonVariant.outlined,
-                ),
+              // Action Button
+              AppButton(
+                text: isSuccess ? 'Done' : 'Try Again',
+                variant: isSuccess ? AppButtonVariant.filled : AppButtonVariant.outlined,
+                fullWidth: true,
+                onPressed: onDismiss,
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  (String icon, Color? color, String title, String subtitle) _info(CheckInOutcome outcome) {
+    switch (outcome) {
+      case CheckInOutcome.success:
+        return ('check_circle', AppColors.success, 'CHECK-IN CONFIRMED', '');
+      case CheckInOutcome.duplicate:
+        return ('repeat', AppColors.warning, 'ALREADY CHECKED IN', 'Your attendance was already logged for this session.');
+      case CheckInOutcome.denied:
+        return ('block', AppColors.error, 'ACCESS DENIED', 'Your membership is inactive or expired. Please see front desk.');
+      case CheckInOutcome.error:
+        return ('error', AppColors.error, 'CHECK-IN ERROR', 'Unable to record check-in. Please try scanning again.');
+      case CheckInOutcome.loading:
+        return ('hourglass', null, 'VERIFYING PASS...', '');
+    }
+  }
+
+  IconData _icon(String name) {
+    switch (name) {
+      case 'check_circle':
+        return Icons.check_circle_rounded;
+      case 'repeat':
+        return Icons.cached_rounded;
+      case 'block':
+        return Icons.block_rounded;
+      case 'error':
+        return Icons.error_outline_rounded;
+      default:
+        return Icons.hourglass_top_rounded;
+    }
+  }
 }
-
-IconData _icon(String name) => switch (name) {
-      'check_circle' => Icons.check_circle,
-      'sync' => Icons.sync,
-      'cancel' => Icons.cancel,
-      'error' => Icons.error,
-      'hourglass_empty' => Icons.hourglass_empty,
-      _ => Icons.info,
-    };
-
-(String, Color?, String, String) _info(CheckInOutcome o) => switch (o) {
-      CheckInOutcome.success => ('check_circle', AppColors.success, 'Check-in recorded', ''),
-      CheckInOutcome.duplicate => ('sync', AppColors.warning, 'Already in', 'This QR was scanned recently.'),
-      CheckInOutcome.denied => ('cancel', AppColors.error, 'Check-in denied', 'Membership inactive. See a staff member.'),
-      CheckInOutcome.error => ('error', AppColors.error, 'Something went wrong', 'Try again or see a staff member.'),
-      CheckInOutcome.loading => ('hourglass_empty', null, 'Scanning…', ''),
-    };

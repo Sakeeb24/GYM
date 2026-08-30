@@ -1,4 +1,4 @@
-﻿// lib/features/qr_checkin/presentation/qr_checkin_screen.dart
+// lib/features/qr_checkin/presentation/qr_checkin_screen.dart
 import 'package:flutter/material.dart';
 import 'package:liftflow/config/env.dart';
 import '../../../core/theme/app_colors.dart';
@@ -16,7 +16,7 @@ class QrCheckInScreen extends StatefulWidget {
 
 class _QrCheckInScreenState extends State<QrCheckInScreen> {
   final AttendanceRepository _repo = EdgeFunctionAttendanceRepository();
-  CheckInOutcome _outcome = CheckInOutcome.loading;
+  AttendanceCheckInResult _result = const AttendanceCheckInResult(outcome: CheckInOutcome.loading);
   bool _scanning = true;
 
   static bool get _devSimulate => const bool.fromEnvironment('SIMULATE_QR') || Env.isDev;
@@ -24,14 +24,14 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
   void _onDetect(String payload) {
     if (!_scanning) return;
     setState(() => _scanning = false);
-    _repo.recordCheckIn(payload).then((outcome) {
+    _repo.recordCheckIn(payload).then((result) {
       if (!mounted) return;
-      setState(() => _outcome = outcome);
+      setState(() => _result = result);
     });
   }
 
   void _reset() => setState(() {
-        _outcome = CheckInOutcome.loading;
+        _result = const AttendanceCheckInResult(outcome: CheckInOutcome.loading);
         _scanning = true;
       });
 
@@ -54,7 +54,11 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
         ),
         body: Padding(
           padding: const EdgeInsets.all(24),
-          child: AttendanceResultView(outcome: _outcome, onDismiss: _reset),
+          child: AttendanceResultView(
+            outcome: _result.outcome,
+            streak: _result.streak,
+            onDismiss: _reset,
+          ),
         ),
       );
     }
