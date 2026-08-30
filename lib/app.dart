@@ -39,7 +39,7 @@ class _AppState extends ConsumerState<App> {
             home: Scaffold(body: Center(child: Text('Startup error: ${snapshot.error}'))),
           );
         }
-        final router = AppRouter.create(ref);
+        final router = ref.watch(routerProvider);
         return MaterialApp.router(
           title: Env.appName,
           theme: AppTheme.light(context),

@@ -28,6 +28,9 @@ class AppErrorMapper {
       if (msg.contains('user already registered') || msg.contains('already exists')) {
         return 'This phone number or username is already registered. Please log in with your username and password.';
       }
+      if (msg.contains('sms_send_failed') || msg.contains('sms') || msg.contains('provider')) {
+        return 'SMS delivery error: ${error.message}';
+      }
       if (msg.contains('otp') || msg.contains('token')) {
         if (msg.contains('expired')) {
           return 'The verification code has expired. Please request a new code.';
