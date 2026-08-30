@@ -5,6 +5,24 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
   group('AppErrorMapper Tests', () {
+    test('Maps Invalid API key to client key rejected message', () {
+      final error = AuthApiException('Invalid API key', statusCode: '401');
+      final msg = AppErrorMapper.toUserMessage(error);
+      expect(msg, 'Supabase client key was rejected.');
+    });
+
+    test('Maps missing key state error to client key missing message', () {
+      final error = StateError('SUPABASE_URL and SUPABASE_ANON_KEY must be provided via --dart-define.');
+      final msg = AppErrorMapper.toUserMessage(error);
+      expect(msg, 'Supabase client key is missing.');
+    });
+
+    test('Maps network failure to unable to reach Supabase message', () {
+      final error = Exception('Failed host lookup: qwnxbdqzmxyukrbeqrcj.supabase.co');
+      final msg = AppErrorMapper.toUserMessage(error);
+      expect(msg, 'Unable to reach Supabase.');
+    });
+
     test('Maps FunctionException 409 to duplicate phone user-friendly message', () {
       final error = FunctionException(
         status: 409,
