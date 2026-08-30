@@ -81,19 +81,14 @@ final analyticsProvider = FutureProvider.family<AnalyticsData, (String, int)>((r
   final (gymId, days) = params;
   final client = AppSupabase.client;
 
-  try {
-    final res = await client.rpc('get_analytics_trends', params: {
-      'p_gym_id': gymId,
-      'p_days': days,
-    });
-    if (res != null && res is Map) {
-      return AnalyticsData.fromMap(Map<String, dynamic>.from(res));
-    }
-  } catch (_) {
-    // Fallback if RPC is not available
+  final res = await client.rpc('get_analytics_trends', params: {
+    'p_gym_id': gymId,
+    'p_days': days,
+  });
+  if (res is Map) {
+    return AnalyticsData.fromMap(Map<String, dynamic>.from(res));
   }
-
-  return AnalyticsData.empty();
+  throw Exception('Invalid analytics response returned by server');
 });
 
 class AnalyticsScreen extends ConsumerStatefulWidget {

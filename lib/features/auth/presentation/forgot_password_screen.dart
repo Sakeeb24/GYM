@@ -229,7 +229,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 AppTextField(
                   label: '6-Digit Verification Code',
                   controller: _otpController,
-                  hint: '123456',
+                  hint: '000000',
                   keyboard: TextInputType.number,
                   maxLength: 6,
                 ),

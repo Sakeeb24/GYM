@@ -1,4 +1,4 @@
-﻿// lib/previews/auth_previews.dart
+// lib/previews/auth_previews.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +42,7 @@ Widget previewAccountSetupDark() => _wrapPreview(
   const AccountSetupScreen(
     fullName: 'Alex Johnson',
     phone: '+91 98765 43210',
-    otpToken: '123456',
+    otpToken: 'sample_verified_token',
   ),
   isDark: true,
 );

@@ -1,6 +1,5 @@
 // lib/features/auth/auth_repository.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../config/env.dart';
 import '../../core/models/profile.dart';
 import '../../core/services/supabase_client.dart';
 
@@ -72,16 +71,6 @@ class SupabaseAuthRepository implements AuthRepository {
     if (res.user == null) throw StateError('Sign in failed');
   }
 
-  /// Predefined test phone numbers and OTPs for testing and verification (Dev ONLY)
-  static const Map<String, String> devTestPhoneOtps = {
-    '+917019707247': '123456',
-    '+919876543210': '123456',
-    '+15555550100': '123456',
-  };
-
-  static bool isTestPhone(String phone) =>
-      Env.isDev && devTestPhoneOtps.containsKey(normalizePhone(phone));
-
   /// Normalizes phone number to E.164 format (+91 default for 10-digit Indian numbers)
   static String normalizePhone(String phone) {
     String clean = phone.replaceAll(RegExp(r'[\s\-()]'), '');
@@ -98,14 +87,6 @@ class SupabaseAuthRepository implements AuthRepository {
   @override
   Future<void> sendPhoneOtp(String phone) async {
     final clean = normalizePhone(phone);
-    if (Env.isDev && devTestPhoneOtps.containsKey(clean)) {
-      try {
-        await client.auth.signInWithOtp(phone: clean);
-      } catch (_) {
-        // Handled in dev
-      }
-      return;
-    }
     await client.auth.signInWithOtp(phone: clean);
   }
 

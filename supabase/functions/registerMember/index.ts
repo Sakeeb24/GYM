@@ -12,12 +12,6 @@ const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
 const DEFAULT_GYM_ID = 'a0000000-0000-0000-0000-000000000001';
 
 // Test phone numbers and OTPs allowed ONLY in development mode
-const DEV_TEST_PHONE_OTPS: Record<string, string> = {
-  '+917019707247': '123456',
-  '+919876543210': '123456',
-  '+15555550100': '123456',
-};
-
 function normalizePhone(raw: string): string {
   let cleaned = raw.replaceAll(/[\s\-()]/g, '');
   if (cleaned.startsWith('00')) {
@@ -103,23 +97,16 @@ Deno.serve(async (req: Request) => {
       return jsonError('Username is already taken. Please choose another username.', 409);
     }
 
-    // --- 3. Verify the phone OTP ---
-    const isDevTestAllowed = !isProduction && Boolean(DEV_TEST_PHONE_OTPS[cleanPhone]);
-    const expectedDevOtp = DEV_TEST_PHONE_OTPS[cleanPhone];
-
-    if (isDevTestAllowed && otp_token.trim() === expectedDevOtp) {
-      // Dev test bypass verified in non-production mode
-    } else {
-      const { data: otpData, error: otpErr } = await admin.auth.verifyOtp({
-        phone: cleanPhone,
-        token: otp_token.trim(),
-        type: 'sms',
-      });
-      if (otpErr || !otpData?.user) {
-        return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid or expired code'}`, 400);
-      }
-      tempOtpUserId = otpData.user.id;
+    // --- 3. Verify the phone OTP via Supabase Auth ---
+    const { data: otpData, error: otpErr } = await admin.auth.verifyOtp({
+      phone: cleanPhone,
+      token: otp_token.trim(),
+      type: 'sms',
+    });
+    if (otpErr || !otpData?.user) {
+      return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid or expired code'}`, 400);
     }
+    tempOtpUserId = otpData.user.id;
 
     // --- 4. Resolve or enroll member record ---
     let { data: memberRow } = await admin
