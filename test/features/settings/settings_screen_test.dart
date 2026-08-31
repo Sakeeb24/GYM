@@ -19,13 +19,10 @@ class MockAuthRepo implements AuthRepository {
   Future<void> signInWithUsername(String username, String password) async {}
 
   @override
-  Future<void> sendPhoneOtp(String phone) async {}
-
-  @override
   Future<void> registerMember({
     required String fullName,
     required String phone,
-    required String otpToken,
+    required String activationToken,
     required String username,
     required String password,
   }) async {}

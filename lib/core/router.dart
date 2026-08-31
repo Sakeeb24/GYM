@@ -6,12 +6,14 @@ import 'widgets/main_scaffold.dart';
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
-import '../features/auth/presentation/otp_screen.dart';
+import '../features/auth/presentation/verify_gym_screen.dart';
 import '../features/auth/presentation/account_setup_screen.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
+import '../features/auth/presentation/owner_activation_qr_screen.dart';
+import '../features/auth/presentation/owner_register_screen.dart';
 
 /// Routes accessible without authentication.
-const _publicRoutes = {'/login', '/register', '/otp', '/account-setup', '/forgot-password'};
+const _publicRoutes = {'/login', '/register', '/verify-gym', '/account-setup', '/forgot-password', '/owner-register'};
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refreshListenable = ValueNotifier<int>(0);
@@ -47,18 +49,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
 
-      // ── Registration flow (3 steps) ───────────────────────────────────
+      // ── Registration flow (3 steps: Personal -> QR Gym Verify -> Account Setup) ──
       GoRoute(
         path: '/register',
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
-        path: '/otp',
-        name: 'otp',
+        path: '/verify-gym',
+        name: 'verify-gym',
         builder: (context, state) {
           final extra = state.extra as Map<String, String>? ?? {};
-          return OtpScreen(
+          return VerifyGymScreen(
             fullName: extra['fullName'] ?? extra['full_name'] ?? '',
             phone: extra['phone'] ?? '',
           );
@@ -72,9 +74,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           return AccountSetupScreen(
             fullName: extra['fullName'] ?? extra['full_name'] ?? '',
             phone: extra['phone'] ?? '',
-            otpToken: extra['otpToken'] ?? extra['otp_token'] ?? '',
+            activationToken: extra['activationToken'] ?? extra['activation_token'] ?? '',
+            gymName: extra['gymName'] ?? extra['gym_name'],
           );
         },
+      ),
+
+      // ── Owner Member Activation QR ────────────────────────────────────
+      GoRoute(
+        path: '/activate-member',
+        name: 'activate-member',
+        builder: (context, state) => const OwnerActivationQrScreen(),
+      ),
+
+      // ── Owner Gym Registration (unauthenticated, guarded by setup secret) ─
+      GoRoute(
+        path: '/owner-register',
+        name: 'owner-register',
+        builder: (context, state) => const OwnerRegisterScreen(),
       ),
 
       // ── Authenticated shell ───────────────────────────────────────────

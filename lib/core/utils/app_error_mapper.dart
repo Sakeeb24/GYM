@@ -20,13 +20,44 @@ class AppErrorMapper {
       return 'Unable to reach Supabase.';
     }
 
+    // QR Activation specific mappings
+    if (str.contains('expired')) {
+      return 'This activation QR has expired. Ask the gym owner to generate a new one.';
+    }
+    if (str.contains('already been used') || str.contains('already used') || str.contains('already been consumed')) {
+      return 'This activation QR has already been used. Ask the gym owner for a new QR code.';
+    }
+    if (str.contains('refreshed or canceled') || str.contains('revoked')) {
+      return 'This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.';
+    }
+    if (str.contains('not valid for liftflow') || str.contains('malformed') || str.contains('invalid qr')) {
+      return 'This QR code is not valid for LiftFlow.';
+    }
+    if (str.contains('another gym') || str.contains('does not belong to this gym')) {
+      return 'This activation belongs to another gym.';
+    }
+
+    // Owner registration specific mappings
+    if (str.contains('invalid setup code')) {
+      return 'Invalid setup code. Please contact LiftFlow support.';
+    }
+    if (str.contains('owner setup is not configured')) {
+      return 'Owner setup is not configured on this server. Please contact LiftFlow support.';
+    }
+    if (str.contains('gym slug') && (str.contains('already taken') || str.contains('taken'))) {
+      return 'This gym URL handle is already taken. Please choose a different gym name or adjust the slug.';
+    }
+    if (str.contains('gym url handle') || str.contains('gym slug must be')) {
+      return 'Gym slug must be 2\u201350 characters: lowercase letters, digits, and hyphens only.';
+    }
+
     if (error is AuthException) {
       final msg = error.message.toLowerCase();
       if (msg.contains('invalid login credentials') || msg.contains('invalid grant')) {
         return 'Invalid username or password. Please try again.';
       }
       if (msg.contains('user already registered') || msg.contains('already exists')) {
-        return 'This phone number or username is already registered. Please log in with your username and password.';
+        return 'This phone number is already registered. Please log in with your username and password.';
       }
       if (msg.contains('sms_send_failed') || msg.contains('sms') || msg.contains('provider')) {
         return 'SMS delivery error: ${error.message}';
@@ -64,14 +95,29 @@ class AppErrorMapper {
       if (details is Map && details['error'] is String) {
         return details['error'] as String;
       }
+      if (details is String) {
+        if (details.contains('"error":')) {
+          final match = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(details);
+          if (match != null && match.group(1) != null) {
+            return match.group(1)!;
+          }
+        }
+        return details;
+      }
       if (error.status == 409) {
         return 'This phone number is already registered. Please log in with your username and password.';
+      }
+      if (error.status == 410) {
+        return 'This activation QR has expired or been used. Ask the gym owner for a new QR code.';
       }
       if (error.status == 400) {
         return 'Invalid request details. Please check your inputs.';
       }
       if (error.status == 403) {
-        return 'Access denied for this gym operation.';
+        return 'Invalid setup code. Please contact LiftFlow support.';
+      }
+      if (error.status == 404) {
+        return 'This QR code is not valid for LiftFlow.';
       }
     }
 

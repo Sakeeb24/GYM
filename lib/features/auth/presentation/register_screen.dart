@@ -1,5 +1,5 @@
 // lib/features/auth/presentation/register_screen.dart
-// Clean Registration Step 1: Personal Profile (Apex Precision)
+// Registration Step 1: Personal Details (Contact Information Only — No SMS OTP)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,8 +7,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
-import '../../../core/utils/app_error_mapper.dart';
-import '../auth_notifier.dart';
 import 'auth_widgets.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -22,7 +20,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _fullName = TextEditingController();
   final _phone = TextEditingController();
   String? _localError;
-  bool _submitting = false;
 
   @override
   void dispose() {
@@ -31,7 +28,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  void _submit() {
     setState(() => _localError = null);
     final name = _fullName.text.trim();
     final phone = _phone.text.trim();
@@ -45,23 +42,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
 
-    setState(() => _submitting = true);
-    try {
-      await ref.read(authActionsProvider).sendPhoneOtp(phone);
-
-      if (mounted) {
-        context.push('/otp', extra: {
-          'fullName': name,
-          'phone': phone,
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _localError = AppErrorMapper.toUserMessage(e));
-      }
-    } finally {
-      if (mounted) setState(() => _submitting = false);
-    }
+    // Step 1 Complete -> Proceed directly to Step 2 (QR Verification).
+    // Phone number is recorded for gym contact records; NO SMS OTP is sent.
+    context.push('/verify-gym', extra: {
+      'fullName': name,
+      'phone': phone,
+    });
   }
 
   @override
@@ -104,7 +90,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Step 1 of 3: Enter your name and mobile number.',
+                    'Step 1 of 3: Enter your name and contact phone number.',
                     style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                   ),
                   const SizedBox(height: 24),
@@ -131,38 +117,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ],
 
                   AppButton(
-                    text: _submitting ? 'Sending code...' : 'Continue',
-                    onPressed: _submitting ? null : _submit,
+                    text: 'Continue',
+                    onPressed: _submit,
                     fullWidth: true,
-                    icon: _submitting
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.black,
-                            ),
-                          )
-                        : null,
                   ),
                   const SizedBox(height: 20),
 
                   Center(
                     child: GestureDetector(
                       onTap: () => context.pop(),
-                      child: Text.rich(
-                        TextSpan(
-                          text: 'Already have an account? ',
-                          style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
-                          children: [
-                            TextSpan(
-                              text: 'Sign In',
-                              style: TextStyle(
-                                color: isDark ? AppColors.brand : AppColors.brandDark,
-                                fontWeight: FontWeight.w700,
-                              ),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Already have an account? ',
+                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                          Text(
+                            'Sign In',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: isDark ? AppColors.brand : AppColors.brandDark,
+                              fontWeight: FontWeight.w700,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

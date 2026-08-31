@@ -175,13 +175,15 @@ Deno.serve(async (req: Request) => {
         }).eq('member_id', memberId).eq('gym_id', gymId);
       }
 
-      await client.from('audit_logs').insert({
-        gym_id: gymId,
-        action: 'payment.succeeded',
-        entity: 'payment',
-        entity_id: insertRes.data!.id,
-        detail: { provider: 'stripe', provider_reference: providerReference, amount_cents: amount },
-      }).catch(() => {});
+      try {
+        await client.from('audit_logs').insert({
+          gym_id: gymId,
+          action: 'payment.succeeded',
+          entity: 'payment',
+          entity_id: insertRes.data!.id,
+          detail: { provider: 'stripe', provider_reference: providerReference, amount_cents: amount },
+        });
+      } catch (_) {}
     }
 
     return jsonOk({ payment_id: insertRes.data!.id, status }, 201);

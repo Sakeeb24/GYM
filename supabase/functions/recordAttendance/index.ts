@@ -84,8 +84,9 @@ Deno.serve(async (req: Request) => {
         .eq('gym_id', gymId).maybeSingle();
       secret = qrSetting.data?.qr_signing_secret || gymId;
     }
+    const effectiveSecret: string = secret ?? gymId;
 
-    const qr = verifyQr(body.qrPayload, secret, isProduction);
+    const qr = verifyQr(body.qrPayload, effectiveSecret, isProduction);
     if (!qr) return jsonError('Invalid or expired QR code', 400);
     if (qr.gym_id !== gymId) return jsonError('QR code does not belong to this gym', 403);
 

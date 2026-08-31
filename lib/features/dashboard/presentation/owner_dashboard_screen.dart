@@ -2,6 +2,7 @@
 // Clean, Modern Gym Dashboard (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../dashboard_repository.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
@@ -250,9 +251,7 @@ class _QuickActionsRow extends StatelessWidget {
           child: _ActionChip(
             label: '+ Member',
             icon: Icons.person_add_alt_1_outlined,
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Member registration is available in the Members tab.')),
-            ),
+            onTap: () => context.push('/activate-member'),
           ),
         ),
         const SizedBox(width: 8),

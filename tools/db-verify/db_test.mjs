@@ -208,6 +208,88 @@ async function main() {
   assert('analytics trends includes daily_trend array', Array.isArray(analyticsTrends.rows[0].trends.daily_trend));
   await resetRole();
 
+  console.log('\n# TEST GROUP: member_activation_tokens schema & constraints');
+  // 1. Insert valid activation token
+  const tokenHashA1 = 'a1b2c3d4e5f60000000000000000000000000000000000000000000000000001';
+  const tokenHashA2 = 'a1b2c3d4e5f60000000000000000000000000000000000000000000000000002';
+  const insertTokenRes = await db.query(`
+    insert into member_activation_tokens (gym_id, created_by, token_hash, expires_at)
+    values ('${Gyms.A}', '${Users.ownerA}', '${tokenHashA1}', now() + interval '60 seconds')
+    returning id, gym_id, expires_at;
+  `);
+  assert('insert valid activation token succeeds', insertTokenRes.rows.length === 1);
+  const tokenId1 = insertTokenRes.rows[0].id;
+
+  // 2. Duplicate token_hash constraint rejected
+  await expectReject(db, 'duplicate token_hash is rejected', () =>
+    db.exec(`insert into member_activation_tokens (gym_id, created_by, token_hash, expires_at)
+      values ('${Gyms.A}', '${Users.ownerA}', '${tokenHashA1}', now() + interval '60 seconds');`));
+
+  // 3. Past expires_at check constraint rejected
+  await expectReject(db, 'expires_at in the past is rejected by constraint', () =>
+    db.exec(`insert into member_activation_tokens (gym_id, created_by, token_hash, expires_at, created_at)
+      values ('${Gyms.A}', '${Users.ownerA}', '${tokenHashA2}', now() - interval '10 seconds', now());`));
+
+  console.log('\n# TEST GROUP: member_activation_tokens atomic consumption & single-use');
+  // 4. Atomic token consumption
+  const consumeRes1 = await db.query(`
+    update member_activation_tokens
+    set used_at = now(), used_by_profile_id = '${Users.memberA1}'
+    where id = '${tokenId1}' and used_at is null and expires_at > now()
+    returning id;
+  `);
+  assert('first consumption attempt consumes exactly 1 token', consumeRes1.rows.length === 1);
+
+  // 5. Race-condition / double consumption rejected (0 rows updated)
+  const consumeRes2 = await db.query(`
+    update member_activation_tokens
+    set used_at = now(), used_by_profile_id = '${Users.memberA1}'
+    where id = '${tokenId1}' and used_at is null and expires_at > now()
+    returning id;
+  `);
+  assert('second consumption attempt consumes 0 rows (single-use enforced)', consumeRes2.rows.length === 0);
+
+  // 6. Expired token consumption rejected (0 rows updated)
+  const expiredTokenHash = 'a1b2c3d4e5f60000000000000000000000000000000000000000000000000003';
+  const expToken = (await db.query(`
+    insert into member_activation_tokens (gym_id, created_by, token_hash, expires_at, created_at)
+    values ('${Gyms.A}', '${Users.ownerA}', '${expiredTokenHash}', now() + interval '1 second', now() - interval '2 seconds')
+    returning id;
+  `)).rows[0].id;
+  // Update expires_at to past to simulate expiry
+  await db.exec(`update member_activation_tokens set expires_at = now() - interval '1 second' where id = '${expToken}';`);
+  const expConsumeRes = await db.query(`
+    update member_activation_tokens
+    set used_at = now(), used_by_profile_id = '${Users.memberA1}'
+    where id = '${expToken}' and used_at is null and expires_at > now()
+    returning id;
+  `);
+  assert('expired token consumption attempt consumes 0 rows', expConsumeRes.rows.length === 0);
+
+  // 7. Revoked token handling
+  const revokedTokenHash = 'a1b2c3d4e5f60000000000000000000000000000000000000000000000000004';
+  const revToken = (await db.query(`
+    insert into member_activation_tokens (gym_id, created_by, token_hash, expires_at)
+    values ('${Gyms.A}', '${Users.ownerA}', '${revokedTokenHash}', now() + interval '60 seconds')
+    returning id;
+  `)).rows[0].id;
+  await db.exec(`update member_activation_tokens set revoked_at = now() where id = '${revToken}';`);
+  const revConsumeRes = await db.query(`
+    update member_activation_tokens
+    set used_at = now(), used_by_profile_id = '${Users.memberA1}'
+    where id = '${revToken}' and used_at is null and revoked_at is null and expires_at > now()
+    returning id;
+  `);
+  assert('revoked token consumption attempt consumes 0 rows', revConsumeRes.rows.length === 0);
+
+  console.log('\n# TEST GROUP: member_activation_tokens tenant isolation & RLS');
+  await asGym(Gyms.A);
+  // Direct client insert denied by RLS
+  await expectReject(db, 'client role cannot insert activation tokens directly', () =>
+    db.exec(`insert into member_activation_tokens (gym_id, created_by, token_hash, expires_at)
+      values ('${Gyms.A}', '${Users.memberA1}', 'fakehash', now() + interval '60 seconds');`));
+  await resetRole();
+
   console.log('\n=========================================');
   console.log('DB TEST SUMMARY: ' + PASS + ' passed, ' + FAIL + ' failed');
   console.log('=========================================');

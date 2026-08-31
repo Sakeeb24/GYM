@@ -213,6 +213,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 8),
+
+                  // ── 8. Footer: Owner gym setup link ─────────────────────
+                  Center(
+                    child: GestureDetector(
+                      onTap: () => context.push('/owner-register'),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            'Setting up a new gym? ',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: cs.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            'Owner setup →',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: isDark ? AppColors.brand : AppColors.brandDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                 ],
               ),

@@ -33,6 +33,10 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^9.2.4
   connectivity_plus: ^6.1.1
+  # QR code generation & camera scanner
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.4
+  crypto: ^3.0.6
   # flutter_background_fetch / workmanager deferred (offline sync) — added in MVP+
   workmanager: ^0.10.9
 

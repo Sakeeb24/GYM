@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
-import '../features/auth/presentation/otp_screen.dart';
+import '../features/auth/presentation/verify_gym_screen.dart';
 import '../features/auth/presentation/account_setup_screen.dart';
+import '../features/auth/presentation/owner_activation_qr_screen.dart';
 import '../features/auth/presentation/auth_widgets.dart';
 
 Widget _wrapPreview(Widget child, {bool isDark = true}) {
@@ -31,9 +32,9 @@ Widget previewRegisterDark() => _wrapPreview(const RegisterScreen(), isDark: tru
 @Preview(name: 'Register Screen - Step 1 (Light)', group: 'Auth')
 Widget previewRegisterLight() => _wrapPreview(const RegisterScreen(), isDark: false);
 
-@Preview(name: 'OTP Screen - Step 2 (Dark)', group: 'Auth')
-Widget previewOtpDark() => _wrapPreview(
-  const OtpScreen(fullName: 'Alex Johnson', phone: '+91 98765 43210'),
+@Preview(name: 'Verify Gym QR - Step 2 (Dark)', group: 'Auth')
+Widget previewVerifyGymDark() => _wrapPreview(
+  const VerifyGymScreen(fullName: 'Alex Johnson', phone: '+91 98765 43210'),
   isDark: true,
 );
 
@@ -42,8 +43,15 @@ Widget previewAccountSetupDark() => _wrapPreview(
   const AccountSetupScreen(
     fullName: 'Alex Johnson',
     phone: '+91 98765 43210',
-    otpToken: 'sample_verified_token',
+    activationToken: 'sample_activation_token_123',
+    gymName: 'Apex Performance Gym',
   ),
+  isDark: true,
+);
+
+@Preview(name: 'Owner Activation QR Screen (Dark)', group: 'Auth')
+Widget previewOwnerActivationDark() => _wrapPreview(
+  const OwnerActivationQrScreen(),
   isDark: true,
 );
 

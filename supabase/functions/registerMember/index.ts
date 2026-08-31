@@ -1,17 +1,23 @@
 import { createAdminClient, jsonOk, jsonError } from '../_shared/supabaseServer.ts';
 
-// registerMember — production endpoint for gym member self-onboarding.
+// registerMember — production endpoint for gym member registration via owner QR activation.
+// Validates owner-issued single-use short-lived activation token.
 // Ensures strict atomic linking: auth.users -> profiles -> members.profile_id
 // Protects against account takeover: NEVER overwrites credentials of an existing account.
 //
 // Accepts:
-//   { full_name, phone, otp_token, username, password }
+//   { full_name, phone, activation_token, username, password }
 
 const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
 
-const DEFAULT_GYM_ID = 'a0000000-0000-0000-0000-000000000001';
+async function sha256Hex(str: string): Promise<string> {
+  const data = new TextEncoder().encode(str);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
-// Test phone numbers and OTPs allowed ONLY in development mode
 function normalizePhone(raw: string): string {
   let cleaned = raw.replaceAll(/[\s\-()]/g, '');
   if (cleaned.startsWith('00')) {
@@ -27,7 +33,7 @@ function normalizePhone(raw: string): string {
 interface RegisterReq {
   full_name: string;
   phone: string;
-  otp_token: string;
+  activation_token: string;
   username: string;
   password: string;
 }
@@ -49,14 +55,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RegisterReq = await req.json();
-    const { full_name, phone, otp_token, username, password } = body;
+    let { full_name, phone, activation_token, username, password } = body;
 
     // --- 1. Validate inputs ---
     if (!full_name?.trim() || full_name.trim().length < 2) {
       return jsonError('Full name must be at least 2 characters', 400);
     }
     if (!phone?.trim()) return jsonError('Phone number is required', 400);
-    if (!otp_token?.trim()) return jsonError('OTP verification code is required', 400);
+    if (!activation_token?.trim()) {
+      return jsonError('Gym activation token is required. Please scan the QR code displayed by your gym owner.', 400);
+    }
     if (!username || !USERNAME_RE.test(username.toLowerCase().trim())) {
       return jsonError('Username must be 3-30 lowercase alphanumeric characters or underscores', 400);
     }
@@ -64,18 +72,27 @@ Deno.serve(async (req: Request) => {
       return jsonError('Password must be at least 8 characters', 400);
     }
 
+    // Clean / extract token
+    activation_token = activation_token.trim();
+    if (activation_token.startsWith('liftflow://member-activation/')) {
+      activation_token = activation_token.replace('liftflow://member-activation/', '').trim();
+    } else if (activation_token.includes('/activate/')) {
+      activation_token = activation_token.split('/activate/')[1].trim();
+    }
+
+    if (activation_token.length < 16) {
+      return jsonError('This QR code is not valid for LiftFlow.', 400);
+    }
+
     const cleanUsername = username.toLowerCase().trim();
     const cleanPhone = normalizePhone(phone);
-
     const admin = createAdminClient();
-    const isProduction = Deno.env.get('ENVIRONMENT') === 'production';
-    let tempOtpUserId: string | null = null;
 
     // --- 2. Check for Duplicate Completed Account (Account Takeover Prevention) ---
-    // Check if an existing profile or member with this phone is already registered with a username/account
+    // Check if an existing profile with this phone is already registered
     const { data: existingProfileByPhone } = await admin
       .from('profiles')
-      .select('user_id, username, phone_verified')
+      .select('user_id, username')
       .eq('phone', cleanPhone)
       .maybeSingle();
 
@@ -97,26 +114,43 @@ Deno.serve(async (req: Request) => {
       return jsonError('Username is already taken. Please choose another username.', 409);
     }
 
-    // --- 3. Verify the phone OTP via Supabase Auth ---
-    const { data: otpData, error: otpErr } = await admin.auth.verifyOtp({
-      phone: cleanPhone,
-      token: otp_token.trim(),
-      type: 'sms',
-    });
-    if (otpErr || !otpData?.user) {
-      return jsonError(`OTP verification failed: ${otpErr?.message ?? 'invalid or expired code'}`, 400);
+    // --- 3. Validate Activation Token ---
+    const tokenHash = await sha256Hex(activation_token);
+    const { data: tokenRecord, error: tokenFetchErr } = await admin
+      .from('member_activation_tokens')
+      .select('id, gym_id, created_by, expires_at, used_at, revoked_at')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+
+    if (tokenFetchErr || !tokenRecord) {
+      return jsonError('This QR code is not valid for LiftFlow.', 404);
     }
-    tempOtpUserId = otpData.user.id;
+
+    if (tokenRecord.revoked_at) {
+      return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
+    }
+
+    if (tokenRecord.used_at) {
+      return jsonError('This activation QR has already been used. Ask the gym owner for a new QR code.', 410);
+    }
+
+    const expiresAt = new Date(tokenRecord.expires_at);
+    if (expiresAt.getTime() <= Date.now()) {
+      return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+    }
+
+    const gymId = tokenRecord.gym_id;
+    const tokenId = tokenRecord.id;
 
     // --- 4. Resolve or enroll member record ---
     let { data: memberRow } = await admin
       .from('members')
       .select('id, gym_id, profile_id, full_name')
+      .eq('gym_id', gymId)
       .eq('phone', cleanPhone)
       .maybeSingle();
 
     if (memberRow && memberRow.profile_id) {
-      // Member record already has a linked profile
       return jsonError(
         'This phone number is already registered. Please log in with your username and password.',
         409,
@@ -128,7 +162,7 @@ Deno.serve(async (req: Request) => {
       const { data: newMember, error: createMemErr } = await admin
         .from('members')
         .insert({
-          gym_id: DEFAULT_GYM_ID,
+          gym_id: gymId,
           member_number: memberNumber,
           full_name: full_name.trim(),
           phone: cleanPhone,
@@ -142,7 +176,6 @@ Deno.serve(async (req: Request) => {
       memberRow = newMember;
     }
 
-    const gymId: string = memberRow.gym_id ?? DEFAULT_GYM_ID;
     const memberId: string = memberRow.id;
     const syntheticEmail = `${cleanUsername}@liftflow.internal`;
 
@@ -170,8 +203,26 @@ Deno.serve(async (req: Request) => {
     }
     newUserId = signUpData.user.id;
 
-    // --- 6. Atomically link profile & member with rollback on failure ---
+    // --- 6. Atomically consume activation token & link profile/member with rollback ---
     try {
+      // Atomic token consumption with race condition prevention
+      const { data: consumedToken, error: consumeErr } = await admin
+        .from('member_activation_tokens')
+        .update({
+          used_at: new Date().toISOString(),
+          used_by_profile_id: newUserId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tokenId)
+        .is('used_at', null)
+        .is('revoked_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .select('id');
+
+      if (consumeErr || !consumedToken || consumedToken.length === 0) {
+        throw new Error('This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.');
+      }
+
       // Upsert profile
       const { error: profileErr } = await admin
         .from('profiles')
@@ -220,20 +271,19 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Clean up temporary OTP user if different
-      if (tempOtpUserId && tempOtpUserId !== newUserId) {
-        await admin.auth.admin.deleteUser(tempOtpUserId).catch(() => {});
-      }
-
       // Write audit log
-      await admin.from('audit_logs').insert({
-        gym_id: gymId,
-        actor_user_id: newUserId,
-        action: 'member.registered',
-        entity: 'member',
-        entity_id: memberId,
-        detail: { username: cleanUsername, phone: cleanPhone },
-      }).catch(() => {});
+      try {
+        await admin.from('audit_logs').insert({
+          gym_id: gymId,
+          actor_user_id: newUserId,
+          action: 'member.registered',
+          entity: 'member',
+          entity_id: memberId,
+          detail: { username: cleanUsername, phone: cleanPhone, activation_token_id: tokenId },
+        });
+      } catch (_) {
+        // Non-blocking
+      }
 
       return jsonOk({
         message: 'Registration successful. You can now sign in with your username and password.',

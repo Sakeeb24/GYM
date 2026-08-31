@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:liftflow/core/business_rules/business_rules.dart';
 import 'package:liftflow/core/models/profile.dart';
 import 'package:liftflow/features/auth/auth_notifier.dart';
@@ -30,14 +31,22 @@ void main() {
         recentActivity: [],
       );
 
+      final router = GoRouter(
+        initialLocation: '/dashboard',
+        routes: [
+          GoRoute(path: '/dashboard', builder: (ctx, st) => const OwnerDashboardScreen()),
+          GoRoute(path: '/activate-member', builder: (ctx, st) => const Scaffold(body: Text('Activate Member Screen'))),
+        ],
+      );
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             authStateProvider.overrideWith((ref) => Stream.value(ownerProfile)),
             dashboardStatsProvider('gym-456').overrideWith((ref) => Future.value(fakeStats)),
           ],
-          child: const MaterialApp(
-            home: OwnerDashboardScreen(),
+          child: MaterialApp.router(
+            routerConfig: router,
           ),
         ),
       );
@@ -57,25 +66,13 @@ void main() {
       expect(find.text('Expiring Soon'), findsOneWidget);
       expect(find.text('Monthly Revenue'), findsOneWidget);
 
-      // Verify Quick Action Buttons
+      // Verify Quick Action Buttons (+ Member navigates to /activate-member)
       final memberBtn = find.text('+ Member');
       expect(memberBtn, findsOneWidget);
       await tester.ensureVisible(memberBtn);
       await tester.tap(memberBtn);
       await tester.pumpAndSettle();
-      expect(find.text('Member registration is available in the Members tab.'), findsOneWidget);
-
-      // Clear previous snackbar before next tap
-      tester.binding.scheduleFrame();
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
-
-      final scanBtn = find.text('Scan QR');
-      expect(scanBtn, findsOneWidget);
-      await tester.ensureVisible(scanBtn);
-      await tester.tap(scanBtn);
-      await tester.pumpAndSettle();
-      expect(find.text('Use the Check-in tab to scan passes.'), findsOneWidget);
+      expect(find.text('Activate Member Screen'), findsOneWidget);
     });
 
     testWidgets('MemberDashboardScreen renders digital pass and check-in button', (tester) async {

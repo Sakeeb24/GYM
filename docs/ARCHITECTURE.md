@@ -7,16 +7,20 @@
            │  HTTPS (Supabase client: anon key only)
            ▼
 [ Supabase Edge Functions ]       (privileged; Service Role; server-side authz)
-   ├─ recordAttendance
-   ├─ createAssistedCheckIn
-   ├─ createFollowUp / recordFollowUp / completeFollowUp
-   ├─ createRenewalOrder
-   ├─ processPaymentWebhook
-   ├─ runNoShowScan          (scheduled)
-   ├─ runRenewalScan         (scheduled)
-   ├─ runDataQualityScan     (scheduled)
-   ├─ sendNotification
-   └─ schedulerTick          (cron entrypoint)
+    ├─ createMemberActivation    (owner QR generation)
+    ├─ validateMemberActivation  (scanned QR verification)
+    ├─ registerMember            (member onboarding via QR token)
+    ├─ recoverPassword           (password recovery)
+    ├─ recordAttendance          (member physical check-in)
+    ├─ createMember              (staff member enrollment)
+    ├─ createFollowUp / recordFollowUp / completeFollowUp
+    ├─ createRenewalOrder
+    ├─ processPaymentWebhook
+    ├─ runNoShowScan          (scheduled)
+    ├─ runRenewalScan         (scheduled)
+    ├─ runDataQualityScan     (scheduled)
+    ├─ sendNotification
+    └─ schedulerTick          (cron entrypoint)
            │  PostgREST / GoTrue / Realtime
            ▼
 [ Supabase Postgres ]  (primary DB; RLS-enforced tenant isolation)

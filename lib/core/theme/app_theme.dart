@@ -1,4 +1,4 @@
-﻿// lib/core/theme/app_theme.dart
+// lib/core/theme/app_theme.dart
 // LiftFlow Athletic Material 3 Theme
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
@@ -102,7 +102,6 @@ class AppTheme {
           minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(borderRadius: AppRadii.r8),
-          textStyle: AppTypography.labelLarge.copyWith(color: Colors.black, fontWeight: FontWeight.w800),
           elevation: 0,
         ),
       ),
@@ -113,7 +112,6 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           side: const BorderSide(color: AppColors.brand, width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: AppRadii.r8),
-          textStyle: AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w800),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(

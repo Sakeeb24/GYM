@@ -48,6 +48,14 @@ CREATE POLICY tenant_isolation_policy ON members
 - Edge Functions (`recordAttendance`) verify the signature against the gym secret key before recording check-in records.
 - Database trigger prevents double check-ins within a configurable grace window (e.g. 5 minutes).
 
+### Member Registration QR Activation Tokens
+- Prospective members join a gym by physically scanning an owner/staff-generated activation QR code.
+- **No SMS OTP Dependency**: Phone numbers are stored solely as contact information and are never used as an authentication proof.
+- **Short-Lived & Ephemeral**: Default token lifespan is 60 seconds.
+- **Single-Use & Atomically Consumed**: Tokens are consumed atomically (`UPDATE member_activation_tokens SET used_at = now(), used_by_profile_id = ... WHERE id = ... AND used_at IS NULL AND expires_at > now()`), preventing race conditions and screenshot reuse.
+- **Cryptographic Hashing**: Tokens are 256-bit random cryptographic nonces; the database stores only SHA-256 hashes (`token_hash`).
+- **Strict Role & Tenant Boundary**: Only authenticated owners and authorized front-desk staff can generate activation tokens for their own gym tenant (`gym_id` derived exclusively from server-side JWT). Anonymous users, trainers, and members cannot generate activation tokens.
+
 ---
 
 ## 4. Secret Hygiene & Key Management

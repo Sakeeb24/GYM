@@ -17,19 +17,17 @@ class AuthActions {
   Future<void> signInWithUsername(String username, String password) =>
       repo.signInWithUsername(username, password);
 
-  Future<void> sendPhoneOtp(String phone) => repo.sendPhoneOtp(phone);
-
   Future<void> registerMember({
     required String fullName,
     required String phone,
-    required String otpToken,
+    required String activationToken,
     required String username,
     required String password,
   }) =>
       repo.registerMember(
         fullName: fullName,
         phone: phone,
-        otpToken: otpToken,
+        activationToken: activationToken,
         username: username,
         password: password,
       );

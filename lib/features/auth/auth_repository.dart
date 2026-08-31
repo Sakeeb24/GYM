@@ -12,14 +12,11 @@ abstract class AuthRepository {
   /// ({username}@liftflow.internal) — users never see or type the email.
   Future<void> signInWithUsername(String username, String password);
 
-  /// Sends a phone OTP for registration. Called before account creation.
-  Future<void> sendPhoneOtp(String phone);
-
-  /// Registers a new member via the server-side Edge Function.
+  /// Registers a new member via the server-side Edge Function using a verified owner QR activation token.
   Future<void> registerMember({
     required String fullName,
     required String phone,
-    required String otpToken,
+    required String activationToken,
     required String username,
     required String password,
   });
@@ -85,16 +82,10 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> sendPhoneOtp(String phone) async {
-    final clean = normalizePhone(phone);
-    await client.auth.signInWithOtp(phone: clean);
-  }
-
-  @override
   Future<void> registerMember({
     required String fullName,
     required String phone,
-    required String otpToken,
+    required String activationToken,
     required String username,
     required String password,
   }) async {
@@ -103,7 +94,7 @@ class SupabaseAuthRepository implements AuthRepository {
       body: {
         'full_name': fullName.trim(),
         'phone': normalizePhone(phone),
-        'otp_token': otpToken.trim(),
+        'activation_token': activationToken.trim(),
         'username': username.trim().toLowerCase(),
         'password': password,
       },

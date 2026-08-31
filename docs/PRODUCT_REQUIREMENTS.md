@@ -109,6 +109,16 @@ Automated daily summary (email + in-app): check-ins, new red-list members,
 follow-ups completed/due, renewals paid/pending, add-on orders, alerts.
 Delivery configurable per gym.
 
+### 3.10 Member Onboarding & Owner QR Activation
+- Member registration is strictly gym-authorized via physical QR scanning.
+- Flow:
+  1. Prospective member enters Full Name & Phone Number (stored as contact metadata). No SMS OTP is sent or verified.
+  2. Member scans owner/front-desk-generated activation QR code (`liftflow://member-activation/<token>`).
+  3. Server validates token status (valid, not expired, not revoked, not used) and returns gym details (`Apex Performance Gym`).
+  4. Member creates unique Username and Password.
+  5. Edge Function `registerMember` atomically consumes the activation token, checks duplicate phone/username constraints (HTTP 409), creates the Supabase Auth user, creates the profile, provisions default membership, and links the member to the issuing gym tenant.
+- Owner / Front-desk screen generates a short-lived (60s) single-use QR with live countdown timer and instant regeneration.
+
 ## 4. MODULES
 
 ### Member

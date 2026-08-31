@@ -1,5 +1,5 @@
 // lib/features/auth/presentation/account_setup_screen.dart
-// Clean Registration Step 3: Username & Password Account Creation (Apex Precision)
+// Registration Step 3: Username & Password Account Creation
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,13 +14,15 @@ import 'auth_widgets.dart';
 class AccountSetupScreen extends ConsumerStatefulWidget {
   final String fullName;
   final String phone;
-  final String otpToken;
+  final String activationToken;
+  final String? gymName;
 
   const AccountSetupScreen({
     super.key,
     required this.fullName,
     required this.phone,
-    required this.otpToken,
+    required this.activationToken,
+    this.gymName,
   });
 
   @override
@@ -72,7 +74,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       await ref.read(authActionsProvider).registerMember(
             fullName: widget.fullName,
             phone: widget.phone,
-            otpToken: widget.otpToken,
+            activationToken: widget.activationToken,
             username: u,
             password: p,
           );
@@ -155,7 +157,9 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'You will use this username and password to log in. No SMS OTP will be required to log in.',
+                      widget.gymName != null && widget.gymName!.isNotEmpty
+                          ? 'Step 3 of 3: Set up your username and password for ${widget.gymName}.'
+                          : 'Step 3 of 3: Set up your username and password to access your gym.',
                       style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                     ),
                     const SizedBox(height: 24),
