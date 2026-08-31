@@ -81,7 +81,6 @@ export function shouldOpenNoShowCase(input: NoShowInput, now: Date = new Date())
   return ms >= input.inactivityThresholdDays * 86400000;
 }
 
-// R3 streak (calendar-day consecutive) ---------------------------------------
 export interface StreakResult {
   current: number;
   longest: number;
@@ -94,16 +93,25 @@ export function computeStreak(
     return { current: 0, longest: opts.initialLongest ?? 0 };
   }
   const min = opts.minConsecutive ?? 1;
-  const days = [...new Set(checkIns.map((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate())))].sort(
-    (a, b) => a.getTime() - b.getTime(),
-  );
+  const dayMap = new Map<number, Date>();
+  for (const d of checkIns) {
+    const dayDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    dayMap.set(dayDate.getTime(), dayDate);
+  }
+  const days = Array.from(dayMap.values()).sort((a, b) => a.getTime() - b.getTime());
+
   let run = 1;
-  let longest = opts.initialLongest ?? 0;
+  let longest = Math.max(1, opts.initialLongest ?? 0);
   for (let i = 1; i < days.length; i++) {
-    run = days[i].getTime() - days[i - 1].getTime() === 86400000 ? run + 1 : 1;
+    const diff = Math.round((days[i].getTime() - days[i - 1].getTime()) / 86400000);
+    if (diff === 1) {
+      run += 1;
+    } else {
+      run = 1;
+    }
     if (run > longest) longest = run;
   }
-  if (1 > longest) longest = 1;
+
   const current = run >= min ? run : 0;
   const effectiveLongest = longest >= min ? longest : (opts.initialLongest ?? 0);
   return { current, longest: effectiveLongest };

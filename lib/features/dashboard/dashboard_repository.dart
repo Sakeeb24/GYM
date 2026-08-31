@@ -127,6 +127,14 @@ class SupabaseDashboardRepository implements DashboardRepository {
         .eq('gym_id', gymId)
         .eq('status', 'pending');
 
+    final expiring = await client
+        .from('memberships')
+        .select('id')
+        .eq('gym_id', gymId)
+        .eq('status', 'active')
+        .lte('expires_at', nowUtc.add(const Duration(days: 7)).toIso8601String())
+        .gte('expires_at', nowUtc.toIso8601String());
+
     final payments = await client
         .from('payments')
         .select('amount_cents')
@@ -160,7 +168,7 @@ class SupabaseDashboardRepository implements DashboardRepository {
     return DashboardStats(
       totalMembers: (members as List).length,
       checkedInToday: (att as List).length,
-      expiringMembers: 0,
+      expiringMembers: (expiring as List).length,
       redListOpen: (red as List).length,
       renewalsDue: (ren as List).length,
       monthlyRevenueCents: revenueCents,
