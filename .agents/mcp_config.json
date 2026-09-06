@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "dart-mcp-server": {
+      "$typeName": "exa.cascade_plugins_pb.CascadePluginCommandTemplate",
+      "command": "E:\\flutter\\bin\\cache\\dart-sdk\\bin\\dart.exe",
+      "args": [
+        "mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}

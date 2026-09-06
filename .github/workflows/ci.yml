@@ -1,0 +1,120 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  flutter-quality:
+    name: Flutter Analyze & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter Dependencies
+        run: flutter pub get
+
+      - name: Run Flutter Analyze
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Run Flutter Tests
+        run: flutter test --coverage
+
+  database-verification:
+    name: Database RLS & Schema Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install DB Test Dependencies
+        run: |
+          cd tools/db-verify
+          npm install
+
+      - name: Run DB RLS & Isolation Verification
+        run: |
+          cd tools/db-verify
+          node db_test.mjs
+
+  edge-functions-typecheck:
+    name: Edge Functions TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Edge Function Dependencies
+        run: |
+          cd supabase/functions
+          npm install
+
+      - name: Run TypeScript Typecheck
+        run: |
+          cd supabase/functions
+          npx tsc -p tsconfig.json
+
+  e2e-tests:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    needs: [flutter-quality, database-verification, edge-functions-typecheck]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Build Web Bundle
+        run: |
+          flutter pub get
+          flutter build web --release --dart-define=ENV=test --dart-define=SUPABASE_URL=https://test.supabase.co --dart-define=SUPABASE_ANON_KEY=test-anon-key
+
+      - name: Install Playwright
+        run: |
+          cd e2e
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Serve Web and Run E2E
+        run: |
+          npx serve -s build/web -p 3000 &
+          sleep 3
+          cd e2e
+          npx playwright test
+        env:
+          CI: true
+          BASE_URL: http://localhost:3000
