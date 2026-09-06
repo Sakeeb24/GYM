@@ -19,8 +19,7 @@
       "npm:@supabase/supabase-js@2/*": ["./node_modules/@supabase/supabase-js/*"],
       "npm:@supabase/auth-js@2": ["./node_modules/@supabase/auth-js"],
       "npm:@supabase/auth-js@2/*": ["./node_modules/@supabase/auth-js/*"]
-    },
-    "baseUrl": "."
+    }
   },
   "include": ["./**/*.ts"]
 }
