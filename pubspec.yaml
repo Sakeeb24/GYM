@@ -19,6 +19,7 @@ dependencies:
 
   # Backend
   supabase_flutter: ^2.9.0
+  http: ^1.2.0
 
   # Validation
   formz: ^0.7.0

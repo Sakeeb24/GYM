@@ -1,8 +1,11 @@
 // lib/features/auth/owner_registration_repository.dart
 // Repository for owner registration. Calls the server-side registerOwner
 // Edge Function — the ONLY place where role='owner' may be assigned.
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../config/env.dart';
 import '../../core/services/supabase_client.dart';
 
 /// Result returned to the UI on successful owner registration.
@@ -65,27 +68,58 @@ class SupabaseOwnerRegistrationRepository implements OwnerRegistrationRepository
     // SECURITY: setup_secret is sent to the server only; it is validated
     // server-side. The client NEVER receives it back. Role assignment is
     // performed server-side using service_role — the anon key cannot bypass RLS.
-    final res = await client.functions.invoke(
-      'registerOwner',
-      body: {
-        'gym_name':     gymName.trim(),
-        'gym_slug':     gymSlug.trim().toLowerCase(),
-        'full_name':    fullName.trim(),
-        'phone':        phone.trim(),
-        'username':     username.trim().toLowerCase(),
-        'password':     password, // never trim passwords
-        'setup_secret': setupSecret.trim(),
-      },
-    );
+    final payload = {
+      'gym_name':     gymName.trim(),
+      'gym_slug':     gymSlug.trim().toLowerCase(),
+      'full_name':    fullName.trim(),
+      'phone':        phone.trim(),
+      'username':     username.trim().toLowerCase(),
+      'password':     password, // never trim passwords
+      'setup_secret': setupSecret.trim(),
+    };
 
-    final data = res.data;
-    if (data is Map) {
-      if (data.containsKey('error')) {
-        throw StateError(data['error'] as String);
+    try {
+      final url = Uri.parse('${Env.supabaseUrl}/functions/v1/registerOwner');
+      final res = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': Env.supabaseAnonKey,
+          'Authorization': 'Bearer ${Env.supabaseAnonKey}',
+        },
+        body: jsonEncode(payload),
+      );
+
+      final dynamic decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          return OwnerRegistrationResult.fromMap(decoded);
+        }
+        if (decoded.containsKey('error')) {
+          final errorMsg = decoded['error'] as String;
+          throw FunctionException(status: res.statusCode, details: errorMsg);
+        }
       }
-      return OwnerRegistrationResult.fromMap(Map<String, dynamic>.from(data));
+      throw FunctionException(
+        status: res.statusCode,
+        details: 'Unexpected response from owner registration service.',
+      );
+    } catch (e) {
+      if (e is FunctionException) rethrow;
+      // Fallback to supabase client functions invoke if direct HTTP fails
+      final res = await client.functions.invoke(
+        'registerOwner',
+        body: payload,
+      );
+      final data = res.data;
+      if (data is Map) {
+        if (data.containsKey('error')) {
+          throw FunctionException(status: 400, details: data['error'] as String);
+        }
+        return OwnerRegistrationResult.fromMap(Map<String, dynamic>.from(data));
+      }
+      throw StateError('Unexpected response from owner registration service.');
     }
-    throw StateError('Unexpected response from owner registration service.');
   }
 }
 
