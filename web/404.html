@@ -6,7 +6,7 @@
   <script type="text/javascript">
     // Single Page Apps for GitHub Pages / Static Hosting
     // Redirects 404 paths to index.html with query parameters
-    var segmentCount = 0;
+    var segmentCount = window.location.pathname.startsWith('/GYM') ? 1 : 0;
     var l = window.location;
     l.replace(
       l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
