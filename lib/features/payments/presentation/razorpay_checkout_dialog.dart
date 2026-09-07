@@ -2,7 +2,7 @@
 // Razorpay Checkout Modal & Server-Verified Payment Flow (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/services/supabase_client.dart';
+import '../../../core/services/edge_function_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_typography.dart';
@@ -49,20 +49,10 @@ class _RazorpayCheckoutDialogState extends ConsumerState<RazorpayCheckoutDialog>
     });
 
     try {
-      final client = AppSupabase.client;
-      final res = await client.functions.invoke('createRazorpayOrder', body: {
+      final data = await EdgeFunctionClient.post('createRazorpayOrder', body: {
         'plan_id': widget.planId,
         'amount_inr': widget.priceInr.toInt(),
       });
-
-      if (res.data == null) {
-        throw StateError('Failed to create payment order with server');
-      }
-
-      final data = res.data is Map ? res.data as Map : {};
-      if (data.containsKey('error')) {
-        throw StateError(data['error'] as String);
-      }
 
       if (mounted) {
         setState(() {
@@ -90,11 +80,10 @@ class _RazorpayCheckoutDialogState extends ConsumerState<RazorpayCheckoutDialog>
       final profile = ref.read(authStateProvider).valueOrNull;
       if (profile == null) throw StateError('Not authenticated');
 
-      final client = AppSupabase.client;
       final txnId = 'pay_${_orderId ?? 'rzp'}_${DateTime.now().millisecondsSinceEpoch}';
 
       // 1. Invoke server-side webhook processor to atomically verify & record payment and extend membership
-      await client.functions.invoke('processPaymentWebhook', body: {
+      await EdgeFunctionClient.post('processPaymentWebhook', body: {
         'provider_reference': txnId,
         'status': 'succeeded',
         'member_id': profile.userId,

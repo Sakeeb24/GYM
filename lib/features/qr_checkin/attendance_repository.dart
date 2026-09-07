@@ -2,10 +2,11 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../../core/services/edge_function_client.dart';
 import '../../core/services/supabase_client.dart';
 import '../../core/utils/app_error_mapper.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Result of a QR check-in attempt. The server (recordAttendance edge function)
 /// is the source of truth; this drives the UI.
@@ -81,17 +82,26 @@ class EdgeFunctionAttendanceRepository implements AttendanceRepository {
   Future<AttendanceCheckInResult> recordCheckIn(String qrPayload) async {
     final idem = const Uuid().v4();
     try {
-      final res = await client.functions.invoke('recordAttendance', body: {
-        'qrPayload': qrPayload,
-        'source': 'qr_self',
-        'idempotencyKey': idem,
-      });
-      if (res.data == null) {
-        return AttendanceCheckInResult.fromOutcome(CheckInOutcome.error, message: 'Server communication error');
+      final Map<String, dynamic> body;
+      if (_client != null) {
+        final res = await client.functions.invoke('recordAttendance', body: {
+          'qrPayload': qrPayload,
+          'source': 'qr_self',
+          'idempotencyKey': idem,
+        });
+        body = res.data is Map<String, dynamic>
+            ? res.data as Map<String, dynamic>
+            : Map<String, dynamic>.from((res.data as Map?) ?? {});
+      } else {
+        body = await EdgeFunctionClient.post(
+          'recordAttendance',
+          body: {
+            'qrPayload': qrPayload,
+            'source': 'qr_self',
+            'idempotencyKey': idem,
+          },
+        );
       }
-      final body = res.data is Map<String, dynamic>
-          ? res.data as Map<String, dynamic>
-          : Map<String, dynamic>.from(res.data as Map);
 
       if (body['duplicate'] == true) {
         return AttendanceCheckInResult.fromOutcome(CheckInOutcome.duplicate, message: 'Pass already scanned recently');

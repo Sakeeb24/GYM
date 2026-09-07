@@ -1,6 +1,6 @@
-// lib/features/auth/auth_repository.dart
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/models/profile.dart';
+import '../../core/services/edge_function_client.dart';
 import '../../core/services/supabase_client.dart';
 
 /// Abstraction over auth + profile fetches. The UI depends on this interface
@@ -126,7 +126,7 @@ class SupabaseAuthRepository implements AuthRepository {
     required String username,
     required String password,
   }) async {
-    final res = await client.functions.invoke(
+    await EdgeFunctionClient.post(
       'registerMember',
       body: {
         'full_name': fullName.trim(),
@@ -136,31 +136,20 @@ class SupabaseAuthRepository implements AuthRepository {
         'password': password,
       },
     );
-    final data = res.data;
-    if (data is Map && data.containsKey('error')) {
-      throw StateError(data['error'] as String);
-    }
   }
 
   @override
   Future<String> requestPasswordReset(String username) async {
     final cleanUser = username.trim().toLowerCase();
     try {
-      final res = await client.functions.invoke(
+      final data = await EdgeFunctionClient.post(
         'recoverPassword',
         body: {
           'action': 'request_otp',
           'username': cleanUser,
         },
       );
-      final data = res.data;
-      if (data is Map) {
-        if (data.containsKey('error')) {
-          throw StateError(data['error'] as String);
-        }
-        return (data['masked_phone'] as String?) ?? 'your registered phone';
-      }
-      return 'your registered phone';
+      return (data['masked_phone'] as String?) ?? 'your registered phone';
     } catch (_) {
       // Fallback: lookup profile phone directly if edge function is deploying
       final profile = await client
@@ -186,7 +175,7 @@ class SupabaseAuthRepository implements AuthRepository {
     required String newPassword,
   }) async {
     final cleanUser = username.trim().toLowerCase();
-    final res = await client.functions.invoke(
+    await EdgeFunctionClient.post(
       'recoverPassword',
       body: {
         'action': 'reset_password',
@@ -195,10 +184,6 @@ class SupabaseAuthRepository implements AuthRepository {
         'new_password': newPassword,
       },
     );
-    final data = res.data;
-    if (data is Map && data.containsKey('error')) {
-      throw StateError(data['error'] as String);
-    }
   }
 
   @override
