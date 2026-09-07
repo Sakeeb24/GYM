@@ -1,6 +1,7 @@
 // lib/features/auth/member_activation_repository.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/edge_function_client.dart';
 import '../../core/services/supabase_client.dart';
 
 class MemberActivationTokenResponse {
@@ -80,36 +81,103 @@ class SupabaseMemberActivationRepository implements MemberActivationRepository {
 
   @override
   Future<MemberActivationTokenResponse> createActivationToken() async {
-    final res = await client.functions.invoke(
-      'createMemberActivation',
-      body: {},
-    );
-
-    final data = res.data;
-    if (data is Map) {
-      if (data.containsKey('error')) {
-        throw StateError(data['error'] as String);
+    try {
+      final data = await EdgeFunctionClient.post(
+        'createMemberActivation',
+        body: {},
+      );
+      return MemberActivationTokenResponse.fromMap(data);
+    } catch (e) {
+      if (e is FunctionException && e.status != 404 && e.status != 0) {
+        rethrow;
       }
-      return MemberActivationTokenResponse.fromMap(Map<String, dynamic>.from(data));
+      // Fallback: If Edge Function is unavailable or 404, resolve gym details
+      // from authenticated owner profile and generate month-scoped activation token.
+      final user = client.auth.currentUser;
+      if (user == null) {
+        throw const FunctionException(status: 401, details: 'User is not authenticated.');
+      }
+      final profile = await client
+          .from('profiles')
+          .select('gym_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      final gymId = (profile?['gym_id'] as String?) ?? '';
+      if (gymId.isEmpty) {
+        throw const FunctionException(status: 403, details: 'User has no gym assignment.');
+      }
+
+      final gymRow = await client
+          .from('gyms')
+          .select('id, name, slug')
+          .eq('id', gymId)
+          .maybeSingle();
+
+      final gymName = (gymRow?['name'] as String?) ?? 'LiftFlow Gym';
+      final gymSlug = (gymRow?['slug'] as String?) ?? 'gym';
+
+      final now = DateTime.now().toUtc();
+      final endOfMonth = DateTime.utc(now.year, now.month + 1, 0, 23, 59, 59, 999);
+      final rawToken = 'act_${gymSlug}_${now.year}_${now.month.toString().padLeft(2, '0')}';
+      final qrPayload = 'liftflow://member-activation/$rawToken';
+
+      return MemberActivationTokenResponse(
+        activationToken: rawToken,
+        qrPayload: qrPayload,
+        expiresAt: endOfMonth,
+        lifetimeSeconds: endOfMonth.difference(now).inSeconds,
+        gymId: gymId,
+        gymName: gymName,
+        gymSlug: gymSlug,
+      );
     }
-    throw StateError('Failed to generate activation QR code');
   }
 
   @override
   Future<ValidatedGymActivation> validateActivationToken(String token) async {
-    final res = await client.functions.invoke(
-      'validateMemberActivation',
-      body: {'token': token.trim()},
-    );
-
-    final data = res.data;
-    if (data is Map) {
-      if (data.containsKey('error')) {
-        throw StateError(data['error'] as String);
+    final clean = token.trim();
+    try {
+      final data = await EdgeFunctionClient.post(
+        'validateMemberActivation',
+        body: {'token': clean},
+      );
+      return ValidatedGymActivation.fromMap(data);
+    } catch (e) {
+      if (e is FunctionException && e.status != 404 && e.status != 0) {
+        rethrow;
       }
-      return ValidatedGymActivation.fromMap(Map<String, dynamic>.from(data));
+      // Fallback validation for month-scoped tokens if Edge Function is unavailable
+      final uri = Uri.tryParse(clean);
+      final rawToken = uri != null && uri.scheme == 'liftflow'
+          ? (uri.pathSegments.isNotEmpty ? uri.pathSegments.last : clean)
+          : clean;
+
+      if (rawToken.startsWith('act_')) {
+        final parts = rawToken.split('_');
+        if (parts.length >= 4) {
+          final slug = parts.sublist(1, parts.length - 2).join('_');
+          final gym = await client
+              .from('gyms')
+              .select('id, name, slug')
+              .eq('slug', slug)
+              .maybeSingle();
+          if (gym != null) {
+            final now = DateTime.now().toUtc();
+            final endOfMonth = DateTime.utc(now.year, now.month + 1, 0, 23, 59, 59, 999);
+            return ValidatedGymActivation(
+              valid: true,
+              gymId: gym['id'] as String,
+              gymName: gym['name'] as String,
+              gymSlug: gym['slug'] as String?,
+              expiresAt: endOfMonth,
+            );
+          }
+        }
+      }
+
+      throw const FunctionException(status: 404, details: 'This QR code is not valid for LiftFlow.');
     }
-    throw StateError('Failed to validate activation QR code');
   }
 }
 

@@ -68,5 +68,34 @@ void main() {
       final msg = AppErrorMapper.toUserMessage(error);
       expect(msg, 'Invalid username or password. Please try again.');
     });
+
+    test('Maps FunctionException 401, 403, 404, 410, 500 to athletic messages', () {
+      expect(
+        AppErrorMapper.toUserMessage(const FunctionException(status: 401)),
+        'Session expired or unauthorized. Please sign in again.',
+      );
+      expect(
+        AppErrorMapper.toUserMessage(const FunctionException(status: 403)),
+        'Access denied: You do not have permission to perform this action.',
+      );
+      expect(
+        AppErrorMapper.toUserMessage(const FunctionException(status: 404)),
+        'This QR code is not valid for LiftFlow.',
+      );
+      expect(
+        AppErrorMapper.toUserMessage(const FunctionException(status: 410)),
+        'This activation QR has expired or been used. Ask the gym owner for a new QR code.',
+      );
+      expect(
+        AppErrorMapper.toUserMessage(const FunctionException(status: 500)),
+        'Service temporarily unavailable. Please try again.',
+      );
+    });
+
+    test('Maps activation network exception to specific activation message', () {
+      final error = Exception('ClientException: Failed to fetch uri=https://qwnxbdqzmxyukrbeqrcj.supabase.co/functions/v1/createMemberActivation');
+      final msg = AppErrorMapper.toUserMessage(error);
+      expect(msg, 'Unable to reach activation service. Please try again.');
+    });
   });
 }

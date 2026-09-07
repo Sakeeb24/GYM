@@ -19,7 +19,18 @@ class AppErrorMapper {
             return match.group(1)!;
           }
         }
-        return details;
+        if (details.isNotEmpty && !details.startsWith('{') && !details.startsWith('Exception')) {
+          return details;
+        }
+      }
+      if (error.status == 401) {
+        return 'Session expired or unauthorized. Please sign in again.';
+      }
+      if (error.status == 403) {
+        return 'Access denied: You do not have permission to perform this action.';
+      }
+      if (error.status == 404) {
+        return 'This QR code is not valid for LiftFlow.';
       }
       if (error.status == 409) {
         return 'This phone number is already registered. Please log in with your username and password.';
@@ -30,11 +41,8 @@ class AppErrorMapper {
       if (error.status == 400) {
         return 'Invalid request details. Please check your inputs.';
       }
-      if (error.status == 403) {
-        return 'Invalid setup code. Please contact LiftFlow support.';
-      }
-      if (error.status == 404) {
-        return 'This QR code is not valid for LiftFlow.';
+      if (error.status >= 500) {
+        return 'Service temporarily unavailable. Please try again.';
       }
     }
 
@@ -89,7 +97,10 @@ class AppErrorMapper {
     if (str.contains('key is missing') || str.contains('must be provided via --dart-define')) {
       return 'Supabase client key is missing.';
     }
-    if (str.contains('socketexception') || str.contains('network') || str.contains('connection refused') || str.contains('failed host lookup') || str.contains('clientexception')) {
+    if (str.contains('socketexception') || str.contains('failed to fetch') || str.contains('network') || str.contains('connection refused') || str.contains('failed host lookup') || str.contains('clientexception')) {
+      if (str.contains('activation')) {
+        return 'Unable to reach activation service. Please try again.';
+      }
       return 'Unable to reach Supabase.';
     }
 
