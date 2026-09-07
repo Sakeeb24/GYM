@@ -33,4 +33,35 @@ test.describe('Web Security Boundaries & Route Redirection', () => {
     const root = page.locator('html');
     await expect(root).toBeAttached();
   });
+
+  test('owner registration route boots cleanly', async ({ page }) => {
+    await page.goto('/#/owner-register');
+    await page.waitForLoadState('domcontentloaded');
+
+    await expect(page).toHaveTitle(/liftflow/i);
+    const root = page.locator('html');
+    await expect(root).toBeAttached();
+  });
+
+  test('attendance display kiosk route boots cleanly', async ({ page }) => {
+    await page.goto('/#/display/attendance');
+    await page.waitForLoadState('domcontentloaded');
+
+    await expect(page).toHaveTitle(/liftflow/i);
+    const root = page.locator('html');
+    await expect(root).toBeAttached();
+  });
+
+  test('console audit produces no fatal uncaught exceptions', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (exception) => errors.push(exception.message));
+
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1500);
+
+    // Expect no uncaught fatal JavaScript exceptions
+    expect(errors.filter(e => !e.includes('ResizeObserver') && !e.includes('Playwright'))).toHaveLength(0);
+  });
 });
+
