@@ -210,7 +210,7 @@ class SupabaseAuthRepository implements AuthRepository {
     if (user == null) return null;
     final res = await client
         .from('profiles')
-        .select('user_id, gym_id, full_name, email, role, status, username, phone, phone_verified, is_profile_complete, created_at, updated_at')
+        .select('user_id, gym_id, full_name, email, role, status, username, phone, phone_verified, created_at, updated_at')
         .eq('user_id', user.id)
         .maybeSingle();
     if (res == null) return null;
