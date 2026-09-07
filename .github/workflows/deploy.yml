@@ -40,11 +40,18 @@ jobs:
         run: flutter pub get
 
       - name: Build Web for GitHub Pages
+        env:
+          PROD_SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL || 'https://qwnxbdqzmxyukrbeqrcj.supabase.co' }}
+          PROD_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_ANON_KEY || vars.SUPABASE_PUBLISHABLE_KEY }}
         run: |
+          if [ -z "$PROD_SUPABASE_ANON_KEY" ]; then
+            echo "ERROR: SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY secret/variable is missing in repository settings."
+            exit 1
+          fi
           flutter build web --release --base-href "/GYM/" \
             --dart-define=ENV=production \
-            --dart-define=SUPABASE_URL=https://qwnxbdqzmxyukrbeqrcj.supabase.co \
-            --dart-define=SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3bnhiZHF6bXh5dWtyYmVxcmNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyMDI2MDUsImV4cCI6MjA1Njc3ODYwNX0.uF40k_4D1F-1X0K8E8b4I_tH5vX5d8x4jL1d8b9z8vA \
+            --dart-define=SUPABASE_URL="$PROD_SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$PROD_SUPABASE_ANON_KEY" \
             --dart-define=APP_NAME=LiftFlow
 
       - name: Setup Pages
