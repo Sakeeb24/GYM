@@ -44,7 +44,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     // Step 1 Complete -> Proceed directly to Step 2 (QR Verification).
     // Phone number is recorded for gym contact records; NO SMS OTP is sent.
-    context.push('/verify-gym', extra: {
+    context.go('/verify-gym', extra: {
       'fullName': name,
       'phone': phone,
     });
