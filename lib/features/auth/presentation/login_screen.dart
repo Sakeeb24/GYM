@@ -200,13 +200,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ),
                         GestureDetector(
+                          behavior: HitTestBehavior.opaque,
                           onTap: () => context.push('/register'),
-                          child: Text(
-                            'Create account',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: isDark ? AppColors.brand : AppColors.brandDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: Text(
+                              'Create account',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: isDark ? AppColors.brand : AppColors.brandDark,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),
@@ -217,29 +221,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   // ── 8. Footer: Owner gym setup link ─────────────────────
                   Center(
-                    child: GestureDetector(
-                      onTap: () => context.push('/owner-register'),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            'Setting up a new gym? ',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 12,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'Setting up a new gym? ',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => context.push('/owner-register'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                            child: Text(
+                              'Owner setup →',
+                              style: AppTypography.bodySmall.copyWith(
+                                color: isDark ? AppColors.brand : AppColors.brandDark,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
-                          Text(
-                            'Owner setup →',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: isDark ? AppColors.brand : AppColors.brandDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),

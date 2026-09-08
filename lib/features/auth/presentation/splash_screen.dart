@@ -62,6 +62,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (profile != null) {
       context.go('/app');
     } else {
+      final currentPath = GoRouterState.of(context).uri.path;
+      if (currentPath.isNotEmpty && currentPath != '/splash') {
+        return;
+      }
       context.go('/login');
     }
   }

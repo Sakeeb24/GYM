@@ -96,13 +96,22 @@ class SupabaseAuthRepository implements AuthRepository {
       }
     }
 
-    // 3. Username with synthetic email ({username}@liftflow.internal)
+    // 3. Username with synthetic email ({username}@liftflow.internal or {username}@liftflow.app)
     final cleanUsername = clean.toLowerCase();
-    final res = await client.auth.signInWithPassword(
-      email: _syntheticEmail(cleanUsername),
-      password: password,
-    );
-    if (res.user == null) throw StateError('Sign in failed');
+    try {
+      final res = await client.auth.signInWithPassword(
+        email: '$cleanUsername@liftflow.internal',
+        password: password,
+      );
+      if (res.user != null) return;
+    } catch (_) {
+      final res = await client.auth.signInWithPassword(
+        email: '$cleanUsername@liftflow.app',
+        password: password,
+      );
+      if (res.user != null) return;
+      rethrow;
+    }
   }
 
   /// Normalizes phone number to E.164 format (+91 default for 10-digit Indian numbers)
@@ -201,7 +210,7 @@ class SupabaseAuthRepository implements AuthRepository {
       if (errStr.contains('otp') || (e is FunctionException && e.status == 404)) {
         try {
           final authRes = await client.auth.signUp(
-            email: _syntheticEmail(cleanUser),
+            email: '$cleanUser@liftflow.app',
             password: password,
             data: {
               'full_name': cleanName,
