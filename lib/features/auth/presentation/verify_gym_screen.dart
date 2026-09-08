@@ -131,7 +131,7 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
         title: Text(
           'VERIFY GYM',

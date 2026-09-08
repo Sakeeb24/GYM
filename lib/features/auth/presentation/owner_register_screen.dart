@@ -170,7 +170,7 @@ class _OwnerRegisterScreenState extends ConsumerState<OwnerRegisterScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
         title: Text(
           'GYM SETUP',
