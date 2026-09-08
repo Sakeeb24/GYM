@@ -1,4 +1,4 @@
-﻿// lib/features/auth/presentation/auth_widgets.dart
+// lib/features/auth/presentation/auth_widgets.dart
 // Athletic Onboarding & Auth Shared Widgets
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_typography.dart';
@@ -21,21 +21,30 @@ class AuthStepIndicator extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(total, (i) {
             final active = i < current;
             final isCurrent = i == current - 1;
             final label = i < _stepLabels.length ? _stepLabels[i] : 'STEP 0${i + 1}';
-            return Text(
-              '0${i + 1} $label',
-              style: AppTypography.labelAthletic.copyWith(
-                fontSize: 10,
-                color: isCurrent
-                    ? (isDark ? AppColors.brand : AppColors.brandDark)
-                    : active
-                        ? AppColors.success
-                        : cs.onSurfaceVariant.withAlpha(120),
-                fontWeight: isCurrent || active ? FontWeight.w800 : FontWeight.w600,
+            final align = i == 0
+                ? TextAlign.start
+                : i == total - 1
+                    ? TextAlign.end
+                    : TextAlign.center;
+            return Expanded(
+              child: Text(
+                '0${i + 1} $label',
+                textAlign: align,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.labelAthletic.copyWith(
+                  fontSize: 10,
+                  color: isCurrent
+                      ? (isDark ? AppColors.brand : AppColors.brandDark)
+                      : active
+                          ? AppColors.success
+                          : cs.onSurfaceVariant.withAlpha(120),
+                  fontWeight: isCurrent || active ? FontWeight.w800 : FontWeight.w600,
+                ),
               ),
             );
           }),

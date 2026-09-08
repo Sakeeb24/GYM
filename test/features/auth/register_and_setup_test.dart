@@ -10,8 +10,6 @@ import 'package:liftflow/features/auth/member_activation_repository.dart';
 import 'package:liftflow/features/auth/presentation/register_screen.dart';
 import 'package:liftflow/features/auth/presentation/verify_gym_screen.dart';
 import 'package:liftflow/features/auth/presentation/account_setup_screen.dart';
-import 'package:liftflow/features/auth/presentation/owner_activation_qr_screen.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FakeAuthRepository implements AuthRepository {
@@ -244,33 +242,101 @@ void main() {
       expect(find.text('Login Screen'), findsOneWidget);
     });
 
-    testWidgets('OwnerActivationQrScreen renders QR code, timer, and handles refresh', (tester) async {
+    testWidgets('VerifyGymScreen allows manual activation code entry and verification', (tester) async {
       final fakeActivationRepo = FakeMemberActivationRepository();
+      final router = GoRouter(
+        initialLocation: '/verify-gym',
+        routes: [
+          GoRoute(
+            path: '/verify-gym',
+            builder: (ctx, st) => const VerifyGymScreen(
+              fullName: 'John Athlete',
+              phone: '+917019707247',
+            ),
+          ),
+          GoRoute(
+            path: '/account-setup',
+            builder: (ctx, st) {
+              final extra = st.extra as Map<String, String>? ?? {};
+              return Scaffold(
+                body: Text('Account Setup Page for ${extra['gymName']} with ${extra['activationToken']}'),
+              );
+            },
+          ),
+        ],
+      );
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             memberActivationRepositoryProvider.overrideWithValue(fakeActivationRepo),
           ],
-          child: const MaterialApp(
-            home: OwnerActivationQrScreen(),
-          ),
+          child: MaterialApp.router(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('ACTIVATE NEW MEMBER'), findsOneWidget);
-      expect(find.text('Scan to Join'), findsOneWidget);
-      expect(find.text('Apex Performance Gym'), findsOneWidget);
-      expect(find.byType(QrImageView), findsOneWidget);
-      expect(find.textContaining('Expires in'), findsOneWidget);
-      expect(find.text('Refresh QR Code'), findsOneWidget);
+      expect(find.text('OR ENTER CODE MANUALLY'), findsOneWidget);
+      expect(find.text('Verify Code'), findsOneWidget);
 
-      // Tap refresh
-      await tester.tap(find.text('Refresh QR Code'));
+      // Enter manual code and verify
+      final textField = find.byType(TextField).first;
+      await tester.ensureVisible(textField);
+      await tester.enterText(textField, 'act_apex-gym_2026_09');
+      final verifyButton = find.text('Verify Code');
+      await tester.ensureVisible(verifyButton);
+      await tester.tap(verifyButton);
       await tester.pumpAndSettle();
 
-      expect(fakeActivationRepo.tokenCounter, 3); // initial (1->2) + refresh (2->3)
+      expect(find.text('GYM VERIFIED ✓'), findsOneWidget);
+      expect(find.text('Apex Performance Gym'), findsOneWidget);
+      expect(find.text('Continue to Credentials'), findsOneWidget);
+
+      // Tap continue to proceed to Step 3
+      final continueBtn = find.text('Continue to Credentials');
+      await tester.ensureVisible(continueBtn);
+      await tester.tap(continueBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Account Setup Page for Apex Performance Gym'), findsOneWidget);
+    });
+
+    testWidgets('AccountSetupScreen renders safeguard when activation token is missing', (tester) async {
+      final fakeAuthRepo = FakeAuthRepository();
+      final router = GoRouter(
+        initialLocation: '/setup',
+        routes: [
+          GoRoute(
+            path: '/setup',
+            builder: (ctx, st) => const AccountSetupScreen(
+              fullName: 'John Athlete',
+              phone: '+917019707247',
+              activationToken: '', // empty token
+              gymName: 'Apex Performance Gym',
+            ),
+          ),
+          GoRoute(path: '/verify-gym', builder: (ctx, st) => const Scaffold(body: Text('Verify Gym Screen'))),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(fakeAuthRepo),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('VERIFICATION REQUIRED'), findsOneWidget);
+      expect(find.text('Go to Step 2 (Verify Gym)'), findsOneWidget);
+      expect(find.text('Complete Registration'), findsNothing);
+
+      await tester.tap(find.text('Go to Step 2 (Verify Gym)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Verify Gym Screen'), findsOneWidget);
     });
   });
 }

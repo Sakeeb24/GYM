@@ -9,6 +9,7 @@ import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/app_error_mapper.dart';
 import '../../../core/widgets/app_button.dart';
+import '../../../core/widgets/app_text_field.dart';
 import '../member_activation_repository.dart';
 import 'auth_widgets.dart';
 
@@ -28,6 +29,7 @@ class VerifyGymScreen extends ConsumerStatefulWidget {
 
 class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
   MobileScannerController? _scannerController;
+  final _manualCodeController = TextEditingController();
   bool _validating = false;
   String? _scannedToken;
   ValidatedGymActivation? _verifiedGym;
@@ -51,6 +53,7 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
   @override
   void dispose() {
     _scannerController?.dispose();
+    _manualCodeController.dispose();
     super.dispose();
   }
 
@@ -221,9 +224,12 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
                               children: [
                                 const Icon(Icons.verified_user_rounded, size: 16, color: AppColors.brand),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Ready to setup account for ${widget.fullName}',
-                                  style: AppTypography.bodySmall.copyWith(fontSize: 12),
+                                Flexible(
+                                  child: Text(
+                                    'Ready to setup account for ${widget.fullName}',
+                                    style: AppTypography.bodySmall.copyWith(fontSize: 12),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ],
                             ),
@@ -338,36 +344,87 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
                             // Top status badge
                             Positioned(
                               top: 16,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha(200),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: AppColors.brand.withAlpha(80)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      _validating ? Icons.hourglass_top_rounded : Icons.qr_code_scanner_rounded,
-                                      color: AppColors.brand,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _validating ? 'VALIDATING GYM...' : 'ALIGN QR INSIDE FRAME',
-                                      style: AppTypography.labelAthletic.copyWith(
+                              left: 16,
+                              right: 16,
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withAlpha(200),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.brand.withAlpha(80)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _validating ? Icons.hourglass_top_rounded : Icons.qr_code_scanner_rounded,
                                         color: AppColors.brand,
-                                        fontSize: 10,
+                                        size: 14,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          _validating ? 'VALIDATING GYM...' : 'ALIGN QR INSIDE FRAME',
+                                          style: AppTypography.labelAthletic.copyWith(
+                                            color: AppColors.brand,
+                                            fontSize: 10,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Manual code entry option
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: cs.outlineVariant.withAlpha(80))),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'OR ENTER CODE MANUALLY',
+                            style: AppTypography.labelAthletic.copyWith(
+                              fontSize: 10,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        Expanded(child: Divider(color: cs.outlineVariant.withAlpha(80))),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    AppTextField(
+                      controller: _manualCodeController,
+                      label: 'Activation / Verification Code',
+                      hint: 'Paste or type code (e.g. act_solo-fitness_2026_09)',
+                    ),
+                    const SizedBox(height: 12),
+
+                    AppButton(
+                      text: _validating ? 'Verifying...' : 'Verify Code',
+                      variant: AppButtonVariant.secondary,
+                      onPressed: _validating
+                          ? null
+                          : () {
+                              final code = _manualCodeController.text.trim();
+                              if (code.isEmpty) {
+                                setState(() => _error = 'Please enter an activation code.');
+                                return;
+                              }
+                              _validateToken(code);
+                            },
+                      fullWidth: true,
+                      icon: const Icon(Icons.verified_rounded, size: 18),
                     ),
                     const SizedBox(height: 16),
 

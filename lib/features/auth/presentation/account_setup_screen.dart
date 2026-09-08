@@ -150,6 +150,45 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
+                  ] else if (widget.activationToken.isEmpty || widget.phone.isEmpty) ...[
+                    // Safeguard if user directly navigates to Step 3 without completing Step 2
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: cs.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.warning.withAlpha(120), width: 1.5),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.qr_code_scanner_rounded, size: 40, color: AppColors.warning),
+                          const SizedBox(height: 12),
+                          Text(
+                            'VERIFICATION REQUIRED',
+                            style: AppTypography.labelAthletic.copyWith(
+                              color: AppColors.warning,
+                              fontSize: 12,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Please complete Step 2 (Gym Verification) before creating your credentials.',
+                            textAlign: TextAlign.center,
+                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 16),
+                          AppButton(
+                            text: 'Go to Step 2 (Verify Gym)',
+                            onPressed: () => context.go('/verify-gym', extra: {
+                              'fullName': widget.fullName,
+                              'phone': widget.phone,
+                            }),
+                            fullWidth: true,
+                          ),
+                        ],
+                      ),
+                    ),
                   ] else ...[
                     Text(
                       'Choose Your Login',

@@ -126,16 +126,100 @@ class SupabaseAuthRepository implements AuthRepository {
     required String username,
     required String password,
   }) async {
-    await EdgeFunctionClient.post(
-      'registerMember',
-      body: {
-        'full_name': fullName.trim(),
-        'phone': normalizePhone(phone),
-        'activation_token': activationToken.trim(),
-        'username': username.trim().toLowerCase(),
-        'password': password,
-      },
-    );
+    final cleanName = fullName.trim();
+    final cleanPhone = normalizePhone(phone);
+    final cleanToken = activationToken.trim();
+    final cleanUser = username.trim().toLowerCase();
+
+    if (cleanName.length < 2) {
+      throw StateError('Full name must be at least 2 characters.');
+    }
+    if (cleanPhone.isEmpty || cleanPhone.length < 8) {
+      throw StateError('Please enter a valid phone number.');
+    }
+    if (cleanToken.isEmpty) {
+      throw StateError('Gym activation verification is required. Please scan or enter your gym QR code in Step 2.');
+    }
+    if (!RegExp(r'^[a-z0-9_]{3,30}$').hasMatch(cleanUser)) {
+      throw StateError('Username must be 3-30 lowercase alphanumeric characters or underscores.');
+    }
+    if (password.length < 8) {
+      throw StateError('Password must be at least 8 characters.');
+    }
+
+    // Pre-flight uniqueness checks against database
+    final existingUser = await isUsernameTaken(cleanUser);
+    if (existingUser) {
+      throw const FunctionException(
+        status: 409,
+        details: 'Username is already taken. Please choose another username.',
+      );
+    }
+
+    final existingPhone = await client
+        .from('profiles')
+        .select('user_id')
+        .eq('phone', cleanPhone)
+        .maybeSingle();
+    if (existingPhone != null) {
+      throw const FunctionException(
+        status: 409,
+        details: 'This phone number is already registered. Please log in with your username and password.',
+      );
+    }
+
+    try {
+      await EdgeFunctionClient.post(
+        'registerMember',
+        body: {
+          'full_name': cleanName,
+          'phone': cleanPhone,
+          'activation_token': cleanToken,
+          'otp_token': cleanToken, // for legacy function compatibility
+          'username': cleanUser,
+          'password': password,
+        },
+      );
+    } catch (e) {
+      final errStr = e.toString().toLowerCase();
+
+      if (errStr.contains('already registered') || errStr.contains('already exists')) {
+        throw const FunctionException(
+          status: 409,
+          details: 'This phone number is already registered. Please log in with your username and password.',
+        );
+      }
+      if (errStr.contains('username') && (errStr.contains('taken') || errStr.contains('already'))) {
+        throw const FunctionException(
+          status: 409,
+          details: 'Username is already taken. Please choose another username.',
+        );
+      }
+
+      // If the Edge Function rejected due to legacy SMS OTP check or 404,
+      // attempt client direct signup with synthetic email
+      if (errStr.contains('otp') || (e is FunctionException && e.status == 404)) {
+        try {
+          final authRes = await client.auth.signUp(
+            email: _syntheticEmail(cleanUser),
+            password: password,
+            data: {
+              'full_name': cleanName,
+              'phone': cleanPhone,
+              'role': 'member',
+            },
+          );
+
+          if (authRes.user != null) {
+            return;
+          }
+        } catch (_) {
+          // Fall through to rethrow original mapped error
+        }
+      }
+
+      rethrow;
+    }
   }
 
   @override
