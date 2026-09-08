@@ -32,6 +32,12 @@ class AuthActions {
         password: password,
       );
 
+  Future<void> sendPasswordResetEmail(String email) =>
+      repo.sendPasswordResetEmail(email);
+
+  Future<void> updatePassword(String newPassword) =>
+      repo.updatePassword(newPassword);
+
   Future<void> signOut() => repo.signOut();
 
   Future<bool> isUsernameTaken(String username) => repo.isUsernameTaken(username);

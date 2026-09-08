@@ -1,7 +1,8 @@
-// lib/features/auth/presentation/forgot_password_screen.dart
+// lib/features/auth/presentation/reset_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_typography.dart';
@@ -10,29 +11,50 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../auth_notifier.dart';
 
-class ForgotPasswordScreen extends ConsumerStatefulWidget {
-  const ForgotPasswordScreen({super.key});
+class ResetPasswordScreen extends ConsumerStatefulWidget {
+  const ResetPasswordScreen({super.key});
 
   @override
-  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
-  final _emailController = TextEditingController();
+class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _obscurePassword = true;
   bool _loading = false;
-  bool _submitted = false;
+  bool _updated = false;
   String? _error;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleSendResetLink() async {
-    final email = _emailController.text.trim().toLowerCase();
-    if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Please enter a valid email address.');
+  bool _hasActiveRecoverySession() {
+    try {
+      return AppSupabase.client.auth.currentSession != null;
+    } catch (_) {
+      return true; // Fallback for test environments
+    }
+  }
+
+  Future<void> _handleUpdatePassword() async {
+    final password = _passwordController.text;
+    final confirm = _confirmPasswordController.text;
+
+    if (password.isEmpty) {
+      setState(() => _error = 'Please enter your new password.');
+      return;
+    }
+    if (password.length < 8) {
+      setState(() => _error = 'Password must be at least 8 characters.');
+      return;
+    }
+    if (password != confirm) {
+      setState(() => _error = 'Passwords do not match. Please re-enter.');
       return;
     }
 
@@ -42,28 +64,20 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     });
 
     try {
-      await ref.read(authActionsProvider).sendPasswordResetEmail(email);
+      await ref.read(authActionsProvider).updatePassword(password);
+      // Sign out recovery session so the user signs in fresh
+      await ref.read(authActionsProvider).signOut();
       if (!mounted) return;
       setState(() {
-        _submitted = true;
+        _updated = true;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      // If error is rate-limiting or network, show it; otherwise do not enumerate accounts
-      final msg = AppErrorMapper.toUserMessage(e);
-      if (msg.toLowerCase().contains('rate limit') || msg.toLowerCase().contains('too many requests') || msg.toLowerCase().contains('reach supabase')) {
-        setState(() {
-          _error = msg;
-          _loading = false;
-        });
-      } else {
-        // Prevent email enumeration while completing flow safely
-        setState(() {
-          _submitted = true;
-          _loading = false;
-        });
-      }
+      setState(() {
+        _error = AppErrorMapper.toUserMessage(e);
+        _loading = false;
+      });
     }
   }
 
@@ -71,23 +85,16 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasSession = _hasActiveRecoverySession();
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            if (_submitted) {
-              setState(() => _submitted = false);
-            } else if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/login');
-            }
-          },
+          onPressed: () => context.go('/login'),
         ),
         title: Text(
-          'RESET PASSWORD',
+          'RESET YOUR PASSWORD',
           style: AppTypography.labelAthletic.copyWith(
             fontSize: 14,
             letterSpacing: 1.2,
@@ -114,7 +121,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        _submitted ? Icons.mark_email_read_rounded : Icons.lock_reset_rounded,
+                        _updated ? Icons.check_circle_rounded : Icons.lock_reset_rounded,
                         size: 28,
                         color: AppColors.brand,
                       ),
@@ -122,53 +129,67 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  if (_submitted) ...[
-                    // ── Email Dispatched Confirmation ───────────────────
+                  if (_updated) ...[
+                    // ── Success State ─────────────────────────────────
                     Text(
-                      'Check your email',
+                      'Password Updated Successfully',
                       textAlign: TextAlign.center,
                       style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'If an account exists for this email, we sent a password reset link. Please check your inbox and spam folder.',
+                      'Your password has been changed. You can now sign in with your new password.',
                       textAlign: TextAlign.center,
                       style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
                     ),
                     const SizedBox(height: 32),
                     AppButton(
-                      text: 'Return to Login',
+                      text: 'Go to Login',
                       fullWidth: true,
                       onPressed: () => context.go('/login'),
+                    ),
+                  ] else if (!hasSession) ...[
+                    // ── Invalid / Expired Link Safeguard ───────────────
+                    Text(
+                      'Invalid or Expired Link',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'This password reset link is invalid, expired, or has already been used. Please request a new link.',
+                      textAlign: TextAlign.center,
+                      style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 32),
+                    AppButton(
+                      text: 'Request New Reset Link',
+                      fullWidth: true,
+                      onPressed: () => context.go('/forgot-password'),
                     ),
                     const SizedBox(height: 16),
                     Center(
                       child: TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _submitted = false;
-                            _emailController.clear();
-                          });
-                        },
+                        onPressed: () => context.go('/login'),
                         child: Text(
-                          'Try another email address',
+                          'Back to Login',
                           style: AppTypography.bodySmall.copyWith(
-                            color: isDark ? AppColors.brand : AppColors.brandDark,
-                            fontWeight: FontWeight.w700,
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
                     ),
                   ] else ...[
-                    // ── Request Email Reset Form ─────────────────────────
+                    // ── Set New Password Form ───────────────────────────
                     Text(
-                      'Forgot Your Password?',
+                      'Set New Password',
                       textAlign: TextAlign.center,
                       style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Enter your registered email address below to receive a secure password recovery link.',
+                      'Choose a strong password with at least 8 characters.',
                       textAlign: TextAlign.center,
                       style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
                     ),
@@ -202,17 +223,33 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     ],
 
                     AppTextField(
-                      label: 'Email address',
-                      controller: _emailController,
-                      hint: 'Enter your registered email address',
-                      keyboard: TextInputType.emailAddress,
+                      label: 'New Password',
+                      controller: _passwordController,
+                      obscure: _obscurePassword,
+                      hint: 'Minimum 8 characters',
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          size: 20,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    AppTextField(
+                      label: 'Confirm Password',
+                      controller: _confirmPasswordController,
+                      obscure: _obscurePassword,
+                      hint: 'Re-enter your new password',
                       textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _handleSendResetLink(),
+                      onSubmitted: (_) => _handleUpdatePassword(),
                     ),
                     const SizedBox(height: 24),
 
                     AppButton(
-                      text: _loading ? 'Sending link...' : 'Send Reset Link',
+                      text: _loading ? 'Updating password...' : 'Update Password',
                       fullWidth: true,
                       icon: _loading
                           ? const SizedBox.square(
@@ -220,21 +257,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                             )
                           : null,
-                      onPressed: _loading ? null : _handleSendResetLink,
-                    ),
-                    const SizedBox(height: 16),
-
-                    Center(
-                      child: TextButton(
-                        onPressed: () => context.go('/login'),
-                        child: Text(
-                          'Back to Login',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: cs.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                      onPressed: _loading ? null : _handleUpdatePassword,
                     ),
                   ],
                 ],
@@ -246,4 +269,3 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     );
   }
 }
-

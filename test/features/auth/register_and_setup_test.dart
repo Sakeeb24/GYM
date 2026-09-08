@@ -49,14 +49,10 @@ class FakeAuthRepository implements AuthRepository {
   Future<bool> isUsernameTaken(String username) async => false;
 
   @override
-  Future<String> requestPasswordReset(String username) async => '+91******7247';
+  Future<void> sendPasswordResetEmail(String email) async {}
 
   @override
-  Future<void> completePasswordReset({
-    required String username,
-    required String otpToken,
-    required String newPassword,
-  }) async {}
+  Future<void> updatePassword(String newPassword) async {}
 }
 
 class FakeMemberActivationRepository implements MemberActivationRepository {

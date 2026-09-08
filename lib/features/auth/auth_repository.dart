@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/models/profile.dart';
 import '../../core/services/edge_function_client.dart';
@@ -21,15 +22,11 @@ abstract class AuthRepository {
     required String password,
   });
 
-  /// Password reset flow: Step 1 requests OTP for registered username.
-  Future<String> requestPasswordReset(String username);
+  /// Password reset flow: Sends a password recovery link to the user's registered email address.
+  Future<void> sendPasswordResetEmail(String email);
 
-  /// Password reset flow: Step 2 verifies OTP and sets new password.
-  Future<void> completePasswordReset({
-    required String username,
-    required String otpToken,
-    required String newPassword,
-  });
+  /// Password reset flow: Updates the authenticated recovery user's password.
+  Future<void> updatePassword(String newPassword);
 
   Future<void> signOut();
   Future<Profile?> currentProfile();
@@ -184,7 +181,6 @@ class SupabaseAuthRepository implements AuthRepository {
           'full_name': cleanName,
           'phone': cleanPhone,
           'activation_token': cleanToken,
-          'otp_token': cleanToken, // for legacy function compatibility
           'username': cleanUser,
           'password': password,
         },
@@ -205,7 +201,7 @@ class SupabaseAuthRepository implements AuthRepository {
         );
       }
 
-      // If the Edge Function rejected due to legacy SMS OTP check or 404,
+      // If the Edge Function rejected due to legacy check or 404,
       // attempt client direct signup with synthetic email
       if (errStr.contains('otp') || (e is FunctionException && e.status == 404)) {
         try {
@@ -232,50 +228,35 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<String> requestPasswordReset(String username) async {
-    final cleanUser = username.trim().toLowerCase();
-    try {
-      final data = await EdgeFunctionClient.post(
-        'recoverPassword',
-        body: {
-          'action': 'request_otp',
-          'username': cleanUser,
-        },
-      );
-      return (data['masked_phone'] as String?) ?? 'your registered phone';
-    } catch (_) {
-      // Fallback: lookup profile phone directly if edge function is deploying
-      final profile = await client
-          .from('profiles')
-          .select('phone')
-          .eq('username', cleanUser)
-          .maybeSingle();
-      if (profile == null) throw StateError('No account found with this username');
-      final phone = profile['phone'] as String?;
-      if (phone == null || phone.isEmpty) {
-        throw StateError('No phone number is registered for this account');
-      }
-      await client.auth.signInWithOtp(phone: phone);
-      final masked = phone.length > 4 ? '${phone.substring(0, 3)} *** *** ${phone.substring(phone.length - 4)}' : '****';
-      return masked;
+  Future<void> sendPasswordResetEmail(String email) async {
+    final clean = email.trim().toLowerCase();
+    if (clean.isEmpty || !clean.contains('@')) {
+      throw StateError('Please enter a valid email address.');
     }
+
+    String? redirectUrl;
+    if (kIsWeb) {
+      try {
+        final origin = Uri.base.origin;
+        redirectUrl = origin.contains('github.io') ? '$origin/GYM/' : '$origin/';
+      } catch (_) {
+        redirectUrl = 'https://sakeeb24.github.io/GYM/';
+      }
+    }
+
+    await client.auth.resetPasswordForEmail(
+      clean,
+      redirectTo: redirectUrl,
+    );
   }
 
   @override
-  Future<void> completePasswordReset({
-    required String username,
-    required String otpToken,
-    required String newPassword,
-  }) async {
-    final cleanUser = username.trim().toLowerCase();
-    await EdgeFunctionClient.post(
-      'recoverPassword',
-      body: {
-        'action': 'reset_password',
-        'username': cleanUser,
-        'otp_token': otpToken.trim(),
-        'new_password': newPassword,
-      },
+  Future<void> updatePassword(String newPassword) async {
+    if (newPassword.length < 8) {
+      throw StateError('Password must be at least 8 characters.');
+    }
+    await client.auth.updateUser(
+      UserAttributes(password: newPassword),
     );
   }
 

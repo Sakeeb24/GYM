@@ -10,12 +10,23 @@ import '../features/auth/presentation/register_screen.dart';
 import '../features/auth/presentation/verify_gym_screen.dart';
 import '../features/auth/presentation/account_setup_screen.dart';
 import '../features/auth/presentation/forgot_password_screen.dart';
+import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/auth/presentation/owner_activation_qr_screen.dart';
 import '../features/auth/presentation/owner_register_screen.dart';
 import '../features/gym_display/presentation/gym_display_screen.dart';
 
 /// Routes accessible without authentication.
-const _publicRoutes = {'/splash', '/login', '/register', '/verify-gym', '/account-setup', '/forgot-password', '/owner-register', '/display/attendance'};
+const _publicRoutes = {
+  '/splash',
+  '/login',
+  '/register',
+  '/verify-gym',
+  '/account-setup',
+  '/forgot-password',
+  '/reset-password',
+  '/owner-register',
+  '/display/attendance',
+};
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refreshListenable = ValueNotifier<int>(0);
@@ -33,6 +44,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isPublic = _publicRoutes.contains(currentPath);
 
       if (currentPath == '/splash') return null;
+      if (currentPath == '/reset-password') return null;
 
       if (profile == null) {
         return isPublic ? null : '/login';
@@ -56,6 +68,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/forgot-password',
         name: 'forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        name: 'reset-password',
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
 
       // ── Registration flow (3 steps: Personal -> QR Gym Verify -> Account Setup) ──
