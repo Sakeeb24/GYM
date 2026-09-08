@@ -208,32 +208,6 @@ class SupabaseAuthRepository implements AuthRepository {
         );
       }
 
-      // If the Edge Function returns an un-updated legacy OTP requirement,
-      // fallback to creating the member account via Supabase Auth
-      if (errStr.contains('otp') || (e is FunctionException && e.status == 404)) {
-        try {
-          final authRes = await client.auth.signUp(
-            email: '$cleanUser@liftflow.app',
-            password: password,
-            data: {
-              'full_name': cleanName,
-              'phone': cleanPhone,
-              'role': 'member',
-            },
-          );
-
-          if (authRes.user != null) {
-            return;
-          }
-        } catch (_) {
-          // Fall through to throw a clean registration error instead of legacy OTP prompt
-          throw const FunctionException(
-            status: 400,
-            details: 'Registration could not be completed at this time. Please check your activation code or contact your gym.',
-          );
-        }
-      }
-
       rethrow;
     }
   }
