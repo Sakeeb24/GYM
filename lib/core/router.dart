@@ -68,10 +68,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/verify-gym',
         name: 'verify-gym',
         builder: (context, state) {
-          final extra = state.extra as Map<String, String>? ?? {};
+          final extra = (state.extra is Map) ? (state.extra as Map).cast<String, dynamic>() : <String, dynamic>{};
           return VerifyGymScreen(
-            fullName: extra['fullName'] ?? extra['full_name'] ?? '',
-            phone: extra['phone'] ?? '',
+            fullName: extra['fullName']?.toString() ?? extra['full_name']?.toString() ?? '',
+            phone: extra['phone']?.toString() ?? '',
           );
         },
       ),
@@ -79,12 +79,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/account-setup',
         name: 'account-setup',
         builder: (context, state) {
-          final extra = state.extra as Map<String, String>? ?? {};
+          final extra = (state.extra is Map) ? (state.extra as Map).cast<String, dynamic>() : <String, dynamic>{};
           return AccountSetupScreen(
-            fullName: extra['fullName'] ?? extra['full_name'] ?? '',
-            phone: extra['phone'] ?? '',
-            activationToken: extra['activationToken'] ?? extra['activation_token'] ?? '',
-            gymName: extra['gymName'] ?? extra['gym_name'],
+            fullName: extra['fullName']?.toString() ?? extra['full_name']?.toString() ?? '',
+            phone: extra['phone']?.toString() ?? '',
+            activationToken: extra['activationToken']?.toString() ?? extra['activation_token']?.toString() ?? '',
+            gymName: extra['gymName']?.toString() ?? extra['gym_name']?.toString(),
           );
         },
       ),
