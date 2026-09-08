@@ -107,6 +107,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: 'Full Name',
                     hint: 'e.g. Alex Johnson',
                     keyboard: TextInputType.name,
+                    textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 14),
 
@@ -115,6 +116,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: 'Phone Number',
                     hint: '+91 98765 43210',
                     keyboard: TextInputType.phone,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
                   ),
                   const SizedBox(height: 20),
 

@@ -130,6 +130,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _password,
                     obscure: _obscure,
                     hint: 'Enter your password',
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,

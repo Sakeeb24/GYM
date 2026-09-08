@@ -234,6 +234,8 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                       controller: _confirmPassword,
                       obscure: _obscure,
                       hint: 'Re-enter your password',
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _submit(),
                     ),
                     const SizedBox(height: 16),
 

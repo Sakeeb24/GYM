@@ -10,6 +10,8 @@ class AppTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final String? errorText;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
   final int? maxLength;
 
   const AppTextField({
@@ -22,6 +24,8 @@ class AppTextField extends StatelessWidget {
     this.suffixIcon,
     this.errorText,
     this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
     this.maxLength,
   });
 
@@ -32,6 +36,8 @@ class AppTextField extends StatelessWidget {
       obscureText: obscure,
       keyboardType: keyboard,
       onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      textInputAction: textInputAction,
       maxLength: maxLength,
       decoration: InputDecoration(
         labelText: label,

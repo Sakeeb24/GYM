@@ -416,6 +416,13 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
                       controller: _manualCodeController,
                       label: 'Activation / Verification Code',
                       hint: 'Paste or type code (e.g. act_solo-fitness_2026_09)',
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (val) {
+                        final code = val.trim();
+                        if (code.isNotEmpty && !_validating) {
+                          _validateToken(code);
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
 
