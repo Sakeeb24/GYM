@@ -115,7 +115,7 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
   void _proceedToCredentials() {
     if (_scannedToken == null || _verifiedGym == null) return;
 
-    context.push('/account-setup', extra: {
+    context.go('/account-setup', extra: {
       'fullName': widget.fullName,
       'phone': widget.phone,
       'activationToken': _scannedToken!,

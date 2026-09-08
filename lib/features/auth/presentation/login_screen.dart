@@ -201,7 +201,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => context.push('/register'),
+                          onTap: () => context.go('/register'),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                             child: Text(
@@ -234,7 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => context.push('/owner-register'),
+                          onTap: () => context.go('/owner-register'),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
                             child: Text(
