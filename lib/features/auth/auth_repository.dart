@@ -188,7 +188,7 @@ class SupabaseAuthRepository implements AuthRepository {
     } catch (e) {
       final errStr = e.toString().toLowerCase();
 
-      if (errStr.contains('already registered') || errStr.contains('already exists')) {
+      if (errStr.contains('already registered') || errStr.contains('already exists') || errStr.contains('duplicate')) {
         throw const FunctionException(
           status: 409,
           details: 'This phone number is already registered. Please log in with your username and password.',
@@ -200,9 +200,16 @@ class SupabaseAuthRepository implements AuthRepository {
           details: 'Username is already taken. Please choose another username.',
         );
       }
+      if (errStr.contains('expired') || errStr.contains('revoked') || errStr.contains('consumed') || errStr.contains('qr code') || errStr.contains('activation')) {
+        if (e is FunctionException) rethrow;
+        throw const FunctionException(
+          status: 410,
+          details: 'This activation QR has expired or is invalid. Please ask your gym owner for a new QR code.',
+        );
+      }
 
-      // If the Edge Function rejected due to legacy check or 404,
-      // attempt client direct signup with synthetic email
+      // If the Edge Function returns an un-updated legacy OTP requirement,
+      // fallback to creating the member account via Supabase Auth
       if (errStr.contains('otp') || (e is FunctionException && e.status == 404)) {
         try {
           final authRes = await client.auth.signUp(
@@ -219,7 +226,11 @@ class SupabaseAuthRepository implements AuthRepository {
             return;
           }
         } catch (_) {
-          // Fall through to rethrow original mapped error
+          // Fall through to throw a clean registration error instead of legacy OTP prompt
+          throw const FunctionException(
+            status: 400,
+            details: 'Registration could not be completed at this time. Please check your activation code or contact your gym.',
+          );
         }
       }
 

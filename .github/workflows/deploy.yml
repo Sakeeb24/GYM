@@ -54,6 +54,19 @@ jobs:
             --dart-define=SUPABASE_ANON_KEY="$PROD_SUPABASE_ANON_KEY" \
             --dart-define=APP_NAME=LiftFlow
 
+      - name: Deploy Supabase Edge Functions (if token configured)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "Deploying registerMember and other Edge Functions to Supabase..."
+            npx --yes supabase functions deploy registerMember --project-ref qwnxbdqzmxyukrbeqrcj --no-verify-jwt || echo "registerMember deploy skipped or failed"
+            npx --yes supabase functions deploy validateMemberActivation --project-ref qwnxbdqzmxyukrbeqrcj --no-verify-jwt || echo "validateMemberActivation deploy skipped or failed"
+            npx --yes supabase functions deploy createMemberActivation --project-ref qwnxbdqzmxyukrbeqrcj --no-verify-jwt || echo "createMemberActivation deploy skipped or failed"
+          else
+            echo "SUPABASE_ACCESS_TOKEN secret not set in repository; skipping Edge Function deployment."
+          fi
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
