@@ -115,7 +115,16 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
   void _proceedToCredentials() {
     if (_scannedToken == null || _verifiedGym == null) return;
 
-    context.go('/account-setup', extra: {
+    final uri = Uri(
+      path: '/account-setup',
+      queryParameters: {
+        'fullName': widget.fullName,
+        'phone': widget.phone,
+        'activationToken': _scannedToken!,
+        if (_verifiedGym?.gymName != null) 'gymName': _verifiedGym!.gymName,
+      },
+    );
+    context.go(uri.toString(), extra: {
       'fullName': widget.fullName,
       'phone': widget.phone,
       'activationToken': _scannedToken!,

@@ -69,9 +69,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'verify-gym',
         builder: (context, state) {
           final extra = (state.extra is Map) ? (state.extra as Map).cast<String, dynamic>() : <String, dynamic>{};
+          final q = state.uri.queryParameters;
           return VerifyGymScreen(
-            fullName: extra['fullName']?.toString() ?? extra['full_name']?.toString() ?? '',
-            phone: extra['phone']?.toString() ?? '',
+            fullName: extra['fullName']?.toString() ?? extra['full_name']?.toString() ?? q['fullName'] ?? q['full_name'] ?? '',
+            phone: extra['phone']?.toString() ?? q['phone'] ?? '',
           );
         },
       ),
@@ -80,11 +81,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'account-setup',
         builder: (context, state) {
           final extra = (state.extra is Map) ? (state.extra as Map).cast<String, dynamic>() : <String, dynamic>{};
+          final q = state.uri.queryParameters;
           return AccountSetupScreen(
-            fullName: extra['fullName']?.toString() ?? extra['full_name']?.toString() ?? '',
-            phone: extra['phone']?.toString() ?? '',
-            activationToken: extra['activationToken']?.toString() ?? extra['activation_token']?.toString() ?? '',
-            gymName: extra['gymName']?.toString() ?? extra['gym_name']?.toString(),
+            fullName: extra['fullName']?.toString() ?? extra['full_name']?.toString() ?? q['fullName'] ?? q['full_name'] ?? '',
+            phone: extra['phone']?.toString() ?? q['phone'] ?? '',
+            activationToken: extra['activationToken']?.toString() ?? extra['activation_token']?.toString() ?? q['activationToken'] ?? q['activation_token'] ?? '',
+            gymName: extra['gymName']?.toString() ?? extra['gym_name']?.toString() ?? q['gymName'] ?? q['gym_name'],
           );
         },
       ),
