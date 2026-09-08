@@ -24,7 +24,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
 
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: '/login',
     refreshListenable: refreshListenable,
     redirect: (context, state) {
       final profileAsync = ref.read(authStateProvider);
