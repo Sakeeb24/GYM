@@ -51,43 +51,65 @@ Deno.serve(async (req: Request) => {
     const admin = createAdminClient();
 
     // Query token details joined with gym
-    const { data: tokenRecord, error: fetchErr } = await admin
+    const { data: tokenRecord } = await admin
       .from('member_activation_tokens')
       .select('id, gym_id, expires_at, used_at, revoked_at, gyms(id, name, slug)')
       .eq('token_hash', tokenHash)
       .maybeSingle();
 
-    if (fetchErr || !tokenRecord) {
-      return jsonError('This QR code is not valid for LiftFlow.', 404);
+    if (tokenRecord) {
+      if (tokenRecord.revoked_at) {
+        return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
+      }
+      if (tokenRecord.used_at) {
+        return jsonError('This activation QR has already been used. Ask the gym owner for a new QR code.', 410);
+      }
+      const expiresAt = new Date(tokenRecord.expires_at);
+      if (expiresAt.getTime() <= Date.now()) {
+        return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+      }
+      const gymData = tokenRecord.gyms as unknown as { id: string; name: string; slug: string } | null;
+      if (!gymData) {
+        return jsonError('Associated gym not found', 404);
+      }
+      return jsonOk({
+        valid: true,
+        gym: {
+          id: gymData.id,
+          name: gymData.name,
+          slug: gymData.slug,
+        },
+        expires_at: tokenRecord.expires_at,
+      }, 200);
     }
 
-    if (tokenRecord.revoked_at) {
-      return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
+    // Month-scoped token fallback
+    if (token.startsWith('act_')) {
+      const parts = token.split('_');
+      if (parts.length >= 4) {
+        const slug = parts.slice(1, parts.length - 2).join('_');
+        const { data: gym } = await admin
+          .from('gyms')
+          .select('id, name, slug, is_active')
+          .eq('slug', slug)
+          .maybeSingle();
+        if (gym && gym.is_active) {
+          const now = new Date();
+          const endOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+          return jsonOk({
+            valid: true,
+            gym: {
+              id: gym.id,
+              name: gym.name,
+              slug: gym.slug,
+            },
+            expires_at: endOfMonth.toISOString(),
+          }, 200);
+        }
+      }
     }
 
-    if (tokenRecord.used_at) {
-      return jsonError('This activation QR has already been used. Ask the gym owner for a new QR code.', 410);
-    }
-
-    const expiresAt = new Date(tokenRecord.expires_at);
-    if (expiresAt.getTime() <= Date.now()) {
-      return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
-    }
-
-    const gymData = tokenRecord.gyms as unknown as { id: string; name: string; slug: string } | null;
-    if (!gymData) {
-      return jsonError('Associated gym not found', 404);
-    }
-
-    return jsonOk({
-      valid: true,
-      gym: {
-        id: gymData.id,
-        name: gymData.name,
-        slug: gymData.slug,
-      },
-      expires_at: tokenRecord.expires_at,
-    }, 200);
+    return jsonError('This QR code is not valid for LiftFlow.', 404);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonError(`validateMemberActivation error: ${msg}`, 500);

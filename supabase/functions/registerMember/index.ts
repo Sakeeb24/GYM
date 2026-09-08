@@ -112,31 +112,47 @@ Deno.serve(async (req: Request) => {
 
     // --- 3. Validate Activation Token ---
     const tokenHash = await sha256Hex(activation_token);
-    const { data: tokenRecord, error: tokenFetchErr } = await admin
+    const { data: tokenRecord } = await admin
       .from('member_activation_tokens')
       .select('id, gym_id, created_by, expires_at, used_at, revoked_at')
       .eq('token_hash', tokenHash)
       .maybeSingle();
 
-    if (tokenFetchErr || !tokenRecord) {
+    let gymId: string;
+    let tokenId: string | null = null;
+
+    if (tokenRecord) {
+      if (tokenRecord.revoked_at) {
+        return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
+      }
+      if (tokenRecord.used_at) {
+        return jsonError('This activation QR has already been used. Ask the gym owner for a new QR code.', 410);
+      }
+      const expiresAt = new Date(tokenRecord.expires_at);
+      if (expiresAt.getTime() <= Date.now()) {
+        return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+      }
+      gymId = tokenRecord.gym_id;
+      tokenId = tokenRecord.id;
+    } else if (activation_token.startsWith('act_')) {
+      const parts = activation_token.split('_');
+      if (parts.length >= 4) {
+        const slug = parts.slice(1, parts.length - 2).join('_');
+        const { data: gym } = await admin
+          .from('gyms')
+          .select('id, is_active')
+          .eq('slug', slug)
+          .maybeSingle();
+        if (!gym || !gym.is_active) {
+          return jsonError('This QR code is not valid for LiftFlow.', 404);
+        }
+        gymId = gym.id;
+      } else {
+        return jsonError('This QR code is not valid for LiftFlow.', 404);
+      }
+    } else {
       return jsonError('This QR code is not valid for LiftFlow.', 404);
     }
-
-    if (tokenRecord.revoked_at) {
-      return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
-    }
-
-    if (tokenRecord.used_at) {
-      return jsonError('This activation QR has already been used. Ask the gym owner for a new QR code.', 410);
-    }
-
-    const expiresAt = new Date(tokenRecord.expires_at);
-    if (expiresAt.getTime() <= Date.now()) {
-      return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
-    }
-
-    const gymId = tokenRecord.gym_id;
-    const tokenId = tokenRecord.id;
 
     // --- 4. Resolve or enroll member record ---
     let { data: memberRow } = await admin
@@ -201,22 +217,24 @@ Deno.serve(async (req: Request) => {
 
     // --- 6. Atomically consume activation token & link profile/member with rollback ---
     try {
-      // Atomic token consumption with race condition prevention
-      const { data: consumedToken, error: consumeErr } = await admin
-        .from('member_activation_tokens')
-        .update({
-          used_at: new Date().toISOString(),
-          used_by_profile_id: newUserId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', tokenId)
-        .is('used_at', null)
-        .is('revoked_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .select('id');
+      if (tokenId) {
+        // Atomic token consumption with race condition prevention
+        const { data: consumedToken, error: consumeErr } = await admin
+          .from('member_activation_tokens')
+          .update({
+            used_at: new Date().toISOString(),
+            used_by_profile_id: newUserId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', tokenId)
+          .is('used_at', null)
+          .is('revoked_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .select('id');
 
-      if (consumeErr || !consumedToken || consumedToken.length === 0) {
-        throw new Error('This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.');
+        if (consumeErr || !consumedToken || consumedToken.length === 0) {
+          throw new Error('This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.');
+        }
       }
 
       // Upsert profile
