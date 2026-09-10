@@ -1140,4 +1140,126 @@ begin
   end if;
 end $$;
 
+-- ==========================================
+-- File: 016_performance_indexes.sql
+-- ==========================================
+create index if not exists idx_no_show_gym_status_created on no_show_cases(gym_id, status, created_at desc);
+create index if not exists idx_payments_gym_status_created on payments(gym_id, status, created_at desc);
+create index if not exists idx_attendance_gym_member_checkin on attendance(gym_id, member_id, check_in_at desc);
+
+-- ==========================================
+-- File: 017_member_activation_tokens.sql
+-- ==========================================
+create table if not exists public.member_activation_tokens (
+  id                  uuid primary key default gen_random_uuid(),
+  gym_id              uuid not null references public.gyms(id) on delete cascade,
+  created_by          uuid not null references auth.users(id) on delete cascade,
+  token_hash          text not null unique,
+  expires_at          timestamptz not null,
+  used_at             timestamptz,
+  used_by_profile_id  uuid references public.profiles(user_id) on delete set null,
+  revoked_at          timestamptz,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  constraint check_activation_expires_future check (expires_at > created_at)
+);
+
+create index if not exists idx_activation_tokens_gym on public.member_activation_tokens(gym_id);
+create index if not exists idx_activation_tokens_hash on public.member_activation_tokens(token_hash);
+create index if not exists idx_activation_tokens_expires on public.member_activation_tokens(expires_at);
+create index if not exists idx_activation_tokens_used on public.member_activation_tokens(used_at);
+
+create trigger set_updated_activation_tokens
+  before update on public.member_activation_tokens
+  for each row execute function public.trigger_set_updated();
+
+alter table public.member_activation_tokens enable row level security;
+
+create policy "activation_tokens select gym_scoped"
+  on public.member_activation_tokens for select
+  using (
+    gym_id = public.gym_id()
+    and (select role from public.profiles where user_id = auth.uid()) in ('owner', 'front_desk')
+  );
+
+create policy "activation_tokens insert denied for client"
+  on public.member_activation_tokens for insert with check (false);
+
+create policy "activation_tokens update denied for client"
+  on public.member_activation_tokens for update using (false);
+
+create policy "activation_tokens delete denied for client"
+  on public.member_activation_tokens for delete using (false);
+
+-- ==========================================
+-- File: 018_owner_onboarding.sql
+-- ==========================================
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename  = 'gyms'
+      and policyname = 'gyms insert denied for client'
+  ) then
+    execute $p$
+      create policy "gyms insert denied for client"
+        on public.gyms for insert with check (false)
+    $p$;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename  = 'gym_settings'
+      and policyname = 'gym_settings insert denied for client'
+  ) then
+    execute $p$
+      create policy "gym_settings insert denied for client"
+        on public.gym_settings for insert with check (false)
+    $p$;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename  = 'gym_settings'
+      and policyname = 'gym_settings delete denied for client'
+  ) then
+    execute $p$
+      create policy "gym_settings delete denied for client"
+        on public.gym_settings for delete using (false)
+    $p$;
+  end if;
+end $$;
+
+-- ==========================================
+-- File: 019_phone_uniqueness_index.sql
+-- ==========================================
+create unique index if not exists idx_profiles_phone_unique
+  on public.profiles (phone)
+  where phone is not null and phone <> '';
+
+-- ==========================================
+-- File: 020_monthly_activation_tokens.sql
+-- ==========================================
+alter table public.member_activation_tokens
+  add column if not exists token_type text not null default 'monthly',
+  add column if not exists month_key text,
+  add column if not exists raw_token text;
+
+create unique index if not exists idx_monthly_active_token
+  on public.member_activation_tokens (gym_id, month_key)
+  where token_type = 'monthly' and revoked_at is null;
+
+create index if not exists idx_activation_tokens_month_key
+  on public.member_activation_tokens (gym_id, token_type, month_key);
+
+
 

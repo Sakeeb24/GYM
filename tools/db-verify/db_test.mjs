@@ -290,6 +290,38 @@ async function main() {
       values ('${Gyms.A}', '${Users.memberA1}', 'fakehash', now() + interval '60 seconds');`));
   await resetRole();
 
+  console.log('\n# TEST GROUP: monthly activation token persistence & uniqueness');
+  // Insert monthly token for 2026-09
+  const mTokenRes1 = await db.query(`
+    insert into member_activation_tokens (gym_id, created_by, token_type, month_key, raw_token, token_hash, expires_at)
+    values ('${Gyms.A}', '${Users.ownerA}', 'monthly', '2026-09', 'act_gym_a_2026_09', 'mhash00000000000000000000000000000000000000000000000000000000001', now() + interval '30 days')
+    returning id, raw_token;
+  `);
+  assert('monthly activation token inserted successfully', mTokenRes1.rows.length === 1);
+
+  // Duplicate active monthly token for same gym and month rejected by unique partial index
+  await expectReject(db, 'duplicate active monthly token for same gym and month is rejected', () =>
+    db.exec(`
+      insert into member_activation_tokens (gym_id, created_by, token_type, month_key, raw_token, token_hash, expires_at)
+      values ('${Gyms.A}', '${Users.ownerA}', 'monthly', '2026-09', 'act_gym_a_2026_09_dup', 'mhash00000000000000000000000000000000000000000000000000000000002', now() + interval '30 days');
+    `));
+
+  // Different month for same gym is allowed
+  const mTokenRes2 = await db.query(`
+    insert into member_activation_tokens (gym_id, created_by, token_type, month_key, raw_token, token_hash, expires_at)
+    values ('${Gyms.A}', '${Users.ownerA}', 'monthly', '2026-10', 'act_gym_a_2026_10', 'mhash00000000000000000000000000000000000000000000000000000000003', now() + interval '60 days')
+    returning id;
+  `);
+  assert('subsequent month token allowed for same gym', mTokenRes2.rows.length === 1);
+
+  // Same month for different gym is allowed
+  const mTokenRes3 = await db.query(`
+    insert into member_activation_tokens (gym_id, created_by, token_type, month_key, raw_token, token_hash, expires_at)
+    values ('${Gyms.B}', '${Users.ownerB}', 'monthly', '2026-09', 'act_gym_b_2026_09', 'mhash00000000000000000000000000000000000000000000000000000000004', now() + interval '30 days')
+    returning id;
+  `);
+  assert('same month token allowed for distinct gym tenant', mTokenRes3.rows.length === 1);
+
   console.log('\n=========================================');
   console.log('DB TEST SUMMARY: ' + PASS + ' passed, ' + FAIL + ' failed');
   console.log('=========================================');

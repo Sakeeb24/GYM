@@ -1,14 +1,10 @@
 import { createAdminClient, jsonOk, jsonError, corsHeaders } from '../_shared/supabaseServer.ts';
 
-// registerMember — production endpoint for gym member registration via owner QR activation.
-// Validates owner-issued single-use short-lived activation token.
-// Ensures strict atomic linking: auth.users -> profiles -> members.profile_id
-// Protects against account takeover: NEVER overwrites credentials of an existing account.
-//
-// Accepts:
-//   { full_name, phone, activation_token, username, password }
-
-const USERNAME_RE = /^[a-z0-9_]{3,30}$/;
+// registerMember: Public endpoint called by the prospective member app
+// when completing account setup from an activation QR code.
+// Validates gym activation token (monthly reusable or single-use),
+// enforces username uniqueness and phone format/uniqueness,
+// and creates the member record, auth user, profile, and active membership atomically.
 
 async function sha256Hex(str: string): Promise<string> {
   const data = new TextEncoder().encode(str);
@@ -18,24 +14,12 @@ async function sha256Hex(str: string): Promise<string> {
     .join('');
 }
 
-function normalizePhone(raw: string): string {
-  let cleaned = raw.replaceAll(/[\s\-()]/g, '');
-  if (cleaned.startsWith('00')) {
-    cleaned = '+' + cleaned.slice(2);
-  } else if (cleaned.startsWith('0') && cleaned.length === 11) {
-    cleaned = '+91' + cleaned.slice(1);
-  } else if (!cleaned.startsWith('+')) {
-    cleaned = cleaned.length === 10 ? `+91${cleaned}` : `+${cleaned}`;
-  }
-  return cleaned;
-}
-
 interface RegisterReq {
   full_name: string;
   phone: string;
+  username?: string;
+  password?: string;
   activation_token: string;
-  username: string;
-  password: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -51,24 +35,14 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RegisterReq = await req.json();
-    let { full_name, phone, activation_token, username, password } = body;
+    let { full_name, phone, username, password, activation_token } = body;
 
-    // --- 1. Validate inputs ---
-    if (!full_name?.trim() || full_name.trim().length < 2) {
-      return jsonError('Full name must be at least 2 characters', 400);
-    }
+    // --- 1. Validate required fields ---
+    if (!full_name?.trim()) return jsonError('Full name is required', 400);
     if (!phone?.trim()) return jsonError('Phone number is required', 400);
-    if (!activation_token?.trim()) {
-      return jsonError('Gym activation token is required. Please scan the QR code displayed by your gym owner.', 400);
-    }
-    if (!username || !USERNAME_RE.test(username.toLowerCase().trim())) {
-      return jsonError('Username must be 3-30 lowercase alphanumeric characters or underscores', 400);
-    }
-    if (!password || password.length < 8) {
-      return jsonError('Password must be at least 8 characters', 400);
-    }
+    if (!activation_token?.trim()) return jsonError('Activation token is required', 400);
 
-    // Clean / extract token
+    // Support deep link or raw token
     activation_token = activation_token.trim();
     if (activation_token.startsWith('liftflow://member-activation/')) {
       activation_token = activation_token.replace('liftflow://member-activation/', '').trim();
@@ -76,19 +50,34 @@ Deno.serve(async (req: Request) => {
       activation_token = activation_token.split('/activate/')[1].trim();
     }
 
-    if (activation_token.length < 16) {
-      return jsonError('This QR code is not valid for LiftFlow.', 400);
+    if (!username?.trim()) {
+      return jsonError('Username is required for zero-OTP member registration.', 400);
+    }
+    if (!password || password.length < 8) {
+      return jsonError('Password must be at least 8 characters.', 400);
     }
 
-    const cleanUsername = username.toLowerCase().trim();
-    const cleanPhone = normalizePhone(phone);
+    // --- 2. Clean and format inputs ---
+    let cleanPhone = phone.trim().replace(/[\s\-()]/g, '');
+    if (!cleanPhone.startsWith('+')) {
+      if (/^\d{10}$/.test(cleanPhone)) {
+        cleanPhone = `+91${cleanPhone}`;
+      } else {
+        cleanPhone = `+${cleanPhone}`;
+      }
+    }
+
+    const cleanUsername = username.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,30}$/.test(cleanUsername)) {
+      return jsonError('Username must be 3-30 characters (letters, numbers, underscores only).', 400);
+    }
+
     const admin = createAdminClient();
 
-    // --- 2. Check for Duplicate Completed Account (Account Takeover Prevention) ---
-    // Check if an existing profile with this phone is already registered
+    // Check if phone is already registered on profiles
     const { data: existingProfileByPhone } = await admin
       .from('profiles')
-      .select('user_id, username')
+      .select('user_id')
       .eq('phone', cleanPhone)
       .maybeSingle();
 
@@ -114,18 +103,19 @@ Deno.serve(async (req: Request) => {
     const tokenHash = await sha256Hex(activation_token);
     const { data: tokenRecord } = await admin
       .from('member_activation_tokens')
-      .select('id, gym_id, created_by, expires_at, used_at, revoked_at')
-      .eq('token_hash', tokenHash)
+      .select('id, gym_id, created_by, token_type, month_key, expires_at, used_at, revoked_at')
+      .or(`token_hash.eq.${tokenHash},raw_token.eq.${activation_token}`)
       .maybeSingle();
 
     let gymId: string;
     let tokenId: string | null = null;
+    let tokenType = 'monthly';
 
     if (tokenRecord) {
       if (tokenRecord.revoked_at) {
         return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
       }
-      if (tokenRecord.used_at) {
+      if (tokenRecord.token_type === 'single_use' && tokenRecord.used_at) {
         return jsonError('This activation QR has already been used. Ask the gym owner for a new QR code.', 410);
       }
       const expiresAt = new Date(tokenRecord.expires_at);
@@ -134,10 +124,24 @@ Deno.serve(async (req: Request) => {
       }
       gymId = tokenRecord.gym_id;
       tokenId = tokenRecord.id;
+      tokenType = tokenRecord.token_type ?? 'monthly';
     } else if (activation_token.startsWith('act_')) {
       const parts = activation_token.split('_');
       if (parts.length >= 4) {
         const slug = parts.slice(1, parts.length - 2).join('_');
+        const tokenYear = parseInt(parts[parts.length - 2], 10);
+        const tokenMonth = parseInt(parts[parts.length - 1], 10);
+
+        const now = new Date();
+        const currentYear = now.getUTCFullYear();
+        const currentMonth = now.getUTCMonth() + 1;
+
+        if (!isNaN(tokenYear) && !isNaN(tokenMonth)) {
+          if (tokenYear < currentYear || (tokenYear === currentYear && tokenMonth < currentMonth)) {
+            return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+          }
+        }
+
         const { data: gym } = await admin
           .from('gyms')
           .select('id, is_active')
@@ -147,6 +151,7 @@ Deno.serve(async (req: Request) => {
           return jsonError('This QR code is not valid for LiftFlow.', 404);
         }
         gymId = gym.id;
+        tokenType = 'monthly';
       } else {
         return jsonError('This QR code is not valid for LiftFlow.', 404);
       }
@@ -215,10 +220,10 @@ Deno.serve(async (req: Request) => {
     }
     newUserId = signUpData.user.id;
 
-    // --- 6. Atomically consume activation token & link profile/member with rollback ---
+    // --- 6. Handle token consumption (only for single_use tokens) & link profile/member ---
     try {
-      if (tokenId) {
-        // Atomic token consumption with race condition prevention
+      if (tokenType === 'single_use' && tokenId) {
+        // Atomic single-use token consumption with race condition prevention
         const { data: consumedToken, error: consumeErr } = await admin
           .from('member_activation_tokens')
           .update({
@@ -233,7 +238,6 @@ Deno.serve(async (req: Request) => {
           .select('id');
 
         if (consumeErr || !consumedToken || consumedToken.length === 0) {
-          // Token was already consumed by another concurrent request or expired
           await admin.auth.admin.deleteUser(newUserId).catch(() => {});
           return jsonError(
             'This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.',
@@ -259,87 +263,67 @@ Deno.serve(async (req: Request) => {
         });
 
       if (profileErr) {
-        const pMsg = profileErr.message.toLowerCase();
-        if (pMsg.includes('duplicate') || pMsg.includes('already exists') || profileErr.code === '23505') {
-          await admin.auth.admin.deleteUser(newUserId).catch(() => {});
-          return jsonError('Username or phone number is already registered.', 409);
-        }
         throw new Error(`Profile creation failed: ${profileErr.message}`);
       }
 
-      // Link member
+      // Link member row to newly created auth profile
       const { error: linkErr } = await admin
         .from('members')
         .update({
           profile_id: newUserId,
-          full_name: full_name.trim(),
+          status: 'active',
           updated_at: new Date().toISOString(),
         })
         .eq('id', memberId);
 
-      if (linkErr) throw new Error(`Member linking failed: ${linkErr.message}`);
+      if (linkErr) {
+        throw new Error(`Member profile link failed: ${linkErr.message}`);
+      }
 
-      // Ensure active membership exists
-      const { data: activeMem } = await admin
+      // Automatically assign default membership plan if no active membership exists
+      const { data: existingMembership } = await admin
         .from('memberships')
         .select('id')
         .eq('member_id', memberId)
+        .eq('status', 'active')
         .maybeSingle();
 
-      if (!activeMem) {
-        // Dynamically resolve or provision gym's active default plan
-        let planId: string | undefined;
-        const { data: existingPlan } = await admin
+      if (!existingMembership) {
+        // Find default plan or create standard 30-day onboarding membership
+        const { data: defaultPlan } = await admin
           .from('membership_plans')
           .select('id, duration_days')
           .eq('gym_id', gymId)
           .eq('is_active', true)
-          .order('created_at', { ascending: true })
           .limit(1)
           .maybeSingle();
 
-        if (existingPlan) {
-          planId = existingPlan.id;
-        } else {
-          const { data: newPlan } = await admin
-            .from('membership_plans')
-            .insert({
-              gym_id: gymId,
-              name: 'Monthly Standard',
-              description: 'Standard all-access monthly gym membership',
-              duration_days: 30,
-              price_cents: 199900,
-              currency: 'INR',
-              billing_interval: 'monthly',
-              grace_period_days: 3,
-              is_active: true,
-            })
-            .select('id')
-            .single();
-          planId = newPlan?.id;
-        }
+        const planId = defaultPlan?.id ?? null;
+        const durationDays = defaultPlan?.duration_days ?? 30;
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
         if (planId) {
           await admin.from('memberships').insert({
             gym_id: gymId,
             member_id: memberId,
             plan_id: planId,
-            started_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            started_at: now.toISOString(),
+            expires_at: expiresAt.toISOString(),
             status: 'active',
           });
         }
       }
 
-      // Write audit log
+      // Audit log
       try {
         await admin.from('audit_logs').insert({
           gym_id: gymId,
           actor_user_id: newUserId,
-          action: 'member.registered',
+          action: 'member.registered_via_activation_qr',
           entity: 'member',
           entity_id: memberId,
-          detail: { username: cleanUsername, phone: cleanPhone, activation_token_id: tokenId },
+          detail: { username: cleanUsername, phone: cleanPhone, activation_token_id: tokenId, token_type: tokenType },
         });
       } catch (_) {
         // Non-blocking
@@ -354,8 +338,8 @@ Deno.serve(async (req: Request) => {
       // Rollback newly created Auth user to prevent orphaned state
       await admin.auth.admin.deleteUser(newUserId).catch(() => {});
 
-      // Rollback consumed token state if this transaction marked it used
-      if (tokenId) {
+      // Rollback consumed token state if this transaction marked it used (single_use only)
+      if (tokenType === 'single_use' && tokenId) {
         await admin
           .from('member_activation_tokens')
           .update({
