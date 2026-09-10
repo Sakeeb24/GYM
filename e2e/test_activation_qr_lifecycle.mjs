@@ -106,8 +106,8 @@ async function runLifecycleTests() {
   console.log('  [PASS] Duplicate username safely rejected with HTTP 409.');
   results.test5_duplicateUsername = 'PASS';
 
-  // ── TEST 6: Concurrent registration on identical account credentials ────────
-  console.log('\nTEST 6: Concurrency test — simultaneous registration attempts...');
+  // ── TEST 6: Concurrency test — simultaneous registration attempts ────────
+  console.log('\nTEST 6: Concurrency test — simultaneous registration attempts on identical credentials...');
   const cNonce = Math.floor(100000 + Math.random() * 900000);
   const p1 = registerMember({
     full_name: `Concurrent Athlete A`,
@@ -127,9 +127,15 @@ async function runLifecycleTests() {
   const [resA, resB] = await Promise.all([p1, p2]);
   const statuses = [resA.status, resB.status];
   console.log('  Simultaneous execution responses:', statuses);
+  console.log('  Response A:', resA.status, resA.data);
+  console.log('  Response B:', resB.status, resB.data);
+
   const successCount = statuses.filter(s => s === 201).length;
   assert(successCount === 1, `Exactly 1 concurrent attempt must succeed, got ${successCount}`);
-  console.log('  [PASS] Exactly 1 concurrent worker succeeded (201); the other was rejected (409/429).');
+  
+  const losingStatus = statuses.find(s => s !== 201);
+  assert(losingStatus === 409 || losingStatus === 429, `Losing concurrent request must return controlled HTTP 409 Conflict or 429, got ${losingStatus}`);
+  console.log(`  [PASS] Exactly 1 concurrent worker succeeded (201); the other received controlled conflict (${losingStatus}).`);
   results.test6_concurrencyIntegrity = 'PASS';
 
   console.log('\n================================================================');

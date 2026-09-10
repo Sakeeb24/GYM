@@ -233,7 +233,12 @@ Deno.serve(async (req: Request) => {
           .select('id');
 
         if (consumeErr || !consumedToken || consumedToken.length === 0) {
-          throw new Error('This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.');
+          // Token was already consumed by another concurrent request or expired
+          await admin.auth.admin.deleteUser(newUserId).catch(() => {});
+          return jsonError(
+            'This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.',
+            409,
+          );
         }
       }
 
@@ -253,7 +258,14 @@ Deno.serve(async (req: Request) => {
           updated_at: new Date().toISOString(),
         });
 
-      if (profileErr) throw new Error(`Profile creation failed: ${profileErr.message}`);
+      if (profileErr) {
+        const pMsg = profileErr.message.toLowerCase();
+        if (pMsg.includes('duplicate') || pMsg.includes('already exists') || profileErr.code === '23505') {
+          await admin.auth.admin.deleteUser(newUserId).catch(() => {});
+          return jsonError('Username or phone number is already registered.', 409);
+        }
+        throw new Error(`Profile creation failed: ${profileErr.message}`);
+      }
 
       // Link member
       const { error: linkErr } = await admin
@@ -354,6 +366,13 @@ Deno.serve(async (req: Request) => {
           .eq('id', tokenId)
           .eq('used_by_profile_id', newUserId)
           .catch(() => {});
+      }
+
+      if (txErr instanceof Error) {
+        const errMsg = txErr.message.toLowerCase();
+        if (errMsg.includes('duplicate') || errMsg.includes('already exists') || errMsg.includes('23505') || errMsg.includes('already registered')) {
+          return jsonError('Username or phone number is already registered.', 409);
+        }
       }
 
       const msg = txErr instanceof Error ? txErr.message : String(txErr);
