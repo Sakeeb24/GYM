@@ -1,4 +1,6 @@
 // e2e/test_concurrent_devices.mjs
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 import { chromium } from '@playwright/test';
 
 const PROD_URL = 'https://sakeeb24.github.io/GYM/';
