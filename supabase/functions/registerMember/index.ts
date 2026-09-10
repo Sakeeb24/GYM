@@ -341,6 +341,21 @@ Deno.serve(async (req: Request) => {
     } catch (txErr: unknown) {
       // Rollback newly created Auth user to prevent orphaned state
       await admin.auth.admin.deleteUser(newUserId).catch(() => {});
+
+      // Rollback consumed token state if this transaction marked it used
+      if (tokenId) {
+        await admin
+          .from('member_activation_tokens')
+          .update({
+            used_at: null,
+            used_by_profile_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', tokenId)
+          .eq('used_by_profile_id', newUserId)
+          .catch(() => {});
+      }
+
       const msg = txErr instanceof Error ? txErr.message : String(txErr);
       return jsonError(`Registration transaction rolled back: ${msg}`, 500);
     }
