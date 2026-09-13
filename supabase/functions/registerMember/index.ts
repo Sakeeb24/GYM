@@ -210,9 +210,20 @@ Deno.serve(async (req: Request) => {
 
     if (signUpErr || !signUpData?.user) {
       const errLower = (signUpErr?.message ?? '').toLowerCase();
-      if (errLower.includes('already registered') || errLower.includes('already exists') || errLower.includes('duplicate')) {
+      const isAlreadyRegistered =
+        errLower.includes('already registered') ||
+        errLower.includes('already been registered') ||
+        errLower.includes('already exists') ||
+        errLower.includes('duplicate') ||
+        errLower.includes('email address has already') ||
+        errLower.includes('phone number has already') ||
+        (signUpErr as any)?.code === 'user_already_exists' ||
+        (signUpErr as any)?.code === 'email_exists' ||
+        (signUpErr as any)?.status === 422;
+
+      if (isAlreadyRegistered) {
         return jsonError(
-          'This phone number is already registered. Please log in with your username and password.',
+          'This phone number or username is already registered. Please log in with your credentials.',
           409,
         );
       }

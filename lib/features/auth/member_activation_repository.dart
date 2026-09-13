@@ -12,6 +12,7 @@ class MemberActivationTokenResponse {
   final String gymId;
   final String gymName;
   final String? gymSlug;
+  final String tokenType;
 
   const MemberActivationTokenResponse({
     required this.activationToken,
@@ -21,6 +22,7 @@ class MemberActivationTokenResponse {
     required this.gymId,
     required this.gymName,
     this.gymSlug,
+    this.tokenType = 'monthly',
   });
 
   factory MemberActivationTokenResponse.fromMap(Map<String, dynamic> map) {
@@ -33,6 +35,7 @@ class MemberActivationTokenResponse {
       gymId: gymMap['id'] as String? ?? '',
       gymName: gymMap['name'] as String? ?? 'Gym',
       gymSlug: gymMap['slug'] as String?,
+      tokenType: map['token_type'] as String? ?? 'monthly',
     );
   }
 }
@@ -43,6 +46,7 @@ class ValidatedGymActivation {
   final String gymName;
   final String? gymSlug;
   final DateTime expiresAt;
+  final String tokenType;
 
   const ValidatedGymActivation({
     required this.valid,
@@ -50,6 +54,7 @@ class ValidatedGymActivation {
     required this.gymName,
     this.gymSlug,
     required this.expiresAt,
+    this.tokenType = 'monthly',
   });
 
   factory ValidatedGymActivation.fromMap(Map<String, dynamic> map) {
@@ -60,6 +65,7 @@ class ValidatedGymActivation {
       gymName: gymMap['name'] as String? ?? 'LiftFlow Gym',
       gymSlug: gymMap['slug'] as String?,
       expiresAt: DateTime.tryParse(map['expires_at']?.toString() ?? '') ?? DateTime.now().add(const Duration(seconds: 60)),
+      tokenType: map['token_type'] as String? ?? 'monthly',
     );
   }
 }

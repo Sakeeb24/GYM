@@ -54,7 +54,7 @@ class _OwnerActivationQrScreenState extends ConsumerState<OwnerActivationQrScree
       final res = await repo.createActivationToken();
 
       if (mounted) {
-        final remaining = res.expiresAt.difference(DateTime.now()).inSeconds.clamp(0, 3600);
+        final remaining = res.expiresAt.difference(DateTime.now()).inSeconds;
         setState(() {
           _tokenData = res;
           _totalLifetime = res.lifetimeSeconds > 0 ? res.lifetimeSeconds : (remaining > 0 ? remaining : 60);
@@ -268,13 +268,14 @@ class _OwnerActivationQrScreenState extends ConsumerState<OwnerActivationQrScree
                                           ),
                                         ],
                                       ),
-                                      Text(
-                                        'Single-use',
-                                        style: AppTypography.bodySmall.copyWith(
-                                          color: cs.onSurfaceVariant,
-                                          fontSize: 11,
-                                        ),
-                                      ),
+                                       Text(
+                                         _tokenData?.tokenType == 'monthly' ? 'Monthly Reusable' : 'Single-use',
+                                         style: AppTypography.bodySmall.copyWith(
+                                           color: cs.onSurfaceVariant,
+                                           fontSize: 11,
+                                           fontWeight: FontWeight.w600,
+                                         ),
+                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),

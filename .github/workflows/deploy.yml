@@ -64,7 +64,7 @@ jobs:
             npx --yes supabase functions deploy validateMemberActivation --project-ref qwnxbdqzmxyukrbeqrcj --no-verify-jwt || echo "validateMemberActivation deploy skipped or failed"
             npx --yes supabase functions deploy createMemberActivation --project-ref qwnxbdqzmxyukrbeqrcj --no-verify-jwt || echo "createMemberActivation deploy skipped or failed"
           else
-            echo "SUPABASE_ACCESS_TOKEN secret not set in repository; skipping Edge Function deployment."
+            echo "::warning::SUPABASE_ACCESS_TOKEN secret not set in repository; skipping Edge Function deployment. Make sure to set SUPABASE_ACCESS_TOKEN in GitHub repository secrets if you need Edge Functions updated automatically."
           fi
 
       - name: Setup Pages
