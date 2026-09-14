@@ -38,6 +38,7 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^6.0.4
   crypto: ^3.0.6
+  url_launcher: ^6.3.1
   # flutter_background_fetch / workmanager deferred (offline sync) — added in MVP+
   workmanager: ^0.10.9
 

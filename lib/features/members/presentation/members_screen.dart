@@ -1,5 +1,5 @@
 // lib/features/members/presentation/members_screen.dart
-// Clean, Compact Member Roster & Athlete Profiles (Apex Precision)
+// Clean, Compact Member Roster & Enhanced Athlete Profiles (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/business_rules/business_rules.dart';
@@ -8,12 +8,17 @@ import '../../../core/services/supabase_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/utils/app_error_mapper.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../../../core/widgets/app_empty_state.dart';
 import '../../../core/widgets/app_error_state.dart';
 import '../../../core/widgets/app_loading_state.dart';
 import '../../auth/auth_notifier.dart';
 import 'add_member_dialog.dart';
+import 'edit_member_dialog.dart';
+import 'export_roster_dialog.dart';
+import 'member_contact_launcher.dart';
+import 'renew_membership_dialog.dart';
 
 final membersProvider = StreamProvider.autoDispose.family<List<Member>, String>((ref, gymId) {
   final client = AppSupabase.client;
@@ -35,6 +40,8 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   final _searchController = TextEditingController();
   String _query = '';
   String _filter = 'ALL';
+  String _sort = 'A_Z'; // 'A_Z', 'Z_A', 'NEWEST', 'OLDEST'
+  String? _selectedTag;
 
   @override
   void dispose() {
@@ -54,53 +61,98 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     );
   }
 
+  void _openExportDialog(List<Member> allMembers, List<Member> filteredMembers) {
+    showDialog(
+      context: context,
+      builder: (_) => ExportRosterDialog(
+        allMembers: allMembers,
+        filteredMembers: filteredMembers,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(authStateProvider).valueOrNull;
     if (profile == null) return const AppLoadingState();
     final membersAsync = ref.watch(membersProvider(profile.gymId));
+    final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'MEMBERS ROSTER',
-          style: AppTypography.labelAthletic.copyWith(
-            fontSize: 16,
-            letterSpacing: 2.0,
-            fontWeight: FontWeight.w900,
+    return membersAsync.when(
+      data: (members) {
+        // Collect all unique tags
+        final allTags = <String>{};
+        for (final m in members) {
+          allTags.addAll(m.tags);
+        }
+
+        final filtered = members.where((m) {
+          final q = _query.toLowerCase();
+          final matchesQuery = _query.isEmpty ||
+              m.fullName.toLowerCase().contains(q) ||
+              (m.phone != null && m.phone!.contains(q)) ||
+              m.memberNumber.toLowerCase().contains(q) ||
+              m.tags.any((t) => t.toLowerCase().contains(q));
+
+          if (!matchesQuery) return false;
+
+          if (_filter == 'ACTIVE' && !m.isActive) return false;
+          if (_filter == 'INACTIVE' && m.isActive) return false;
+
+          if (_selectedTag != null && !m.tags.contains(_selectedTag)) return false;
+
+          return true;
+        }).toList();
+
+        // Apply sorting
+        filtered.sort((a, b) {
+          switch (_sort) {
+            case 'Z_A':
+              return b.fullName.toLowerCase().compareTo(a.fullName.toLowerCase());
+            case 'NEWEST':
+              final aDate = a.createdAt ?? DateTime(2020);
+              final bDate = b.createdAt ?? DateTime(2020);
+              return bDate.compareTo(aDate);
+            case 'OLDEST':
+              final aDate = a.createdAt ?? DateTime(2020);
+              final bDate = b.createdAt ?? DateTime(2020);
+              return aDate.compareTo(bDate);
+            case 'A_Z':
+            default:
+              return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+          }
+        });
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(
+              'MEMBERS ROSTER',
+              style: AppTypography.labelAthletic.copyWith(
+                fontSize: 16,
+                letterSpacing: 2.0,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            actions: [
+              IconButton(
+                tooltip: 'Export CSV',
+                icon: const Icon(Icons.file_download_outlined),
+                onPressed: () => _openExportDialog(members, filtered),
+              ),
+              IconButton(
+                tooltip: 'Enroll Athlete',
+                icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.brand),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => const AddMemberDialog(),
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Enroll Athlete',
-            icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.brand),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => const AddMemberDialog(),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: membersAsync.when(
-        data: (members) {
-          final filtered = members.where((m) {
-            final q = _query.toLowerCase();
-            final matchesQuery = _query.isEmpty ||
-                m.fullName.toLowerCase().contains(q) ||
-                (m.phone != null && m.phone!.contains(q)) ||
-                m.memberNumber.toLowerCase().contains(q);
-
-            if (!matchesQuery) return false;
-
-            if (_filter == 'ACTIVE') return m.isActive;
-            if (_filter == 'INACTIVE') return !m.isActive;
-            return true;
-          }).toList();
-
-          return Column(
+          body: Column(
             children: [
               // ── 1. Search Bar ─────────────────────────────────────────
               Padding(
@@ -109,7 +161,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                   controller: _searchController,
                   onChanged: (val) => setState(() => _query = val.trim()),
                   decoration: InputDecoration(
-                    hintText: 'Search members by name or ID...',
+                    hintText: 'Search members by name, ID, or tag...',
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
                     suffixIcon: _query.isNotEmpty
                         ? IconButton(
@@ -125,34 +177,121 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 ),
               ),
 
-              // ── 2. Filter Chips ───────────────────────────────────────
+              // ── 2. Status Filters & Sort Dropdown ─────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    _FilterChip(
-                      label: 'All (${members.length})',
-                      selected: _filter == 'ALL',
-                      onSelected: () => setState(() => _filter = 'ALL'),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _FilterChip(
+                              label: 'All (${members.length})',
+                              selected: _filter == 'ALL',
+                              onSelected: () => setState(() => _filter = 'ALL'),
+                            ),
+                            const SizedBox(width: 6),
+                            _FilterChip(
+                              label: 'Active (${members.where((m) => m.isActive).length})',
+                              selected: _filter == 'ACTIVE',
+                              onSelected: () => setState(() => _filter = 'ACTIVE'),
+                            ),
+                            const SizedBox(width: 6),
+                            _FilterChip(
+                              label: 'Inactive (${members.where((m) => !m.isActive).length})',
+                              selected: _filter == 'INACTIVE',
+                              onSelected: () => setState(() => _filter = 'INACTIVE'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Active (${members.where((m) => m.isActive).length})',
-                      selected: _filter == 'ACTIVE',
-                      onSelected: () => setState(() => _filter = 'ACTIVE'),
-                    ),
-                    const SizedBox(width: 6),
-                    _FilterChip(
-                      label: 'Inactive (${members.where((m) => !m.isActive).length})',
-                      selected: _filter == 'INACTIVE',
-                      onSelected: () => setState(() => _filter = 'INACTIVE'),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      tooltip: 'Sort Roster',
+                      icon: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: cs.surface,
+                          borderRadius: AppRadii.r8,
+                          border: Border.all(color: cs.outline),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.sort_rounded, size: 16, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 4),
+                            Text(
+                              _sort == 'A_Z'
+                                  ? 'A-Z'
+                                  : _sort == 'Z_A'
+                                      ? 'Z-A'
+                                      : _sort == 'NEWEST'
+                                          ? 'Newest'
+                                          : 'Oldest',
+                              style: AppTypography.bodySmall.copyWith(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      onSelected: (val) => setState(() => _sort = val),
+                      itemBuilder: (ctx) => [
+                        const PopupMenuItem(value: 'A_Z', child: Text('Name (A → Z)')),
+                        const PopupMenuItem(value: 'Z_A', child: Text('Name (Z → A)')),
+                        const PopupMenuItem(value: 'NEWEST', child: Text('Newest Joined')),
+                        const PopupMenuItem(value: 'OLDEST', child: Text('Oldest Joined')),
+                      ],
                     ),
                   ],
                 ),
               ),
+
+              // ── 3. Tag Filter Chips (if any exist) ────────────────────
+              if (allTags.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        Text(
+                          'TAGS:',
+                          style: AppTypography.labelAthletic.copyWith(
+                            fontSize: 10,
+                            letterSpacing: 1.0,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _TagFilterChip(
+                          label: 'All Tags',
+                          selected: _selectedTag == null,
+                          onSelected: () => setState(() => _selectedTag = null),
+                        ),
+                        ...allTags.map((tag) => Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: _TagFilterChip(
+                                label: tag,
+                                selected: _selectedTag == tag,
+                                onSelected: () => setState(() {
+                                  _selectedTag = _selectedTag == tag ? null : tag;
+                                }),
+                              ),
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
 
-              // ── 3. Member Roster List ─────────────────────────────────
+              // ── 4. Member Roster List ─────────────────────────────────
               Expanded(
                 child: filtered.isEmpty
                     ? const AppEmptyState(
@@ -173,12 +312,57 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                       ),
               ),
             ],
-          );
-        },
-        loading: () => const AppLoadingState(),
-        error: (e, _) => AppErrorState(
+          ),
+        );
+      },
+      loading: () => const Scaffold(body: AppLoadingState()),
+      error: (e, _) => Scaffold(
+        body: AppErrorState(
           message: 'Failed to load members roster',
           onRetry: () => ref.refresh(membersProvider(profile.gymId).future),
+        ),
+      ),
+    );
+  }
+}
+
+class _TagFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _TagFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: onSelected,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: selected
+              ? (isDark ? AppColors.brand.withAlpha(35) : AppColors.brandContainer)
+              : cs.surface,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: selected ? AppColors.brand : cs.outline,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.bodySmall.copyWith(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: selected ? (isDark ? AppColors.brand : AppColors.brandDark) : cs.onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -239,49 +423,79 @@ class _MemberRosterCard extends StatelessWidget {
             border: Border.all(color: cs.outline),
           ),
           padding: const EdgeInsets.all(12),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: isDark ? AppColors.brand.withAlpha(25) : AppColors.brandContainer,
-                child: Text(
-                  member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : 'M',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? AppColors.brand : AppColors.brandDark,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      member.fullName,
-                      style: AppTypography.titleMedium.copyWith(
-                        fontWeight: FontWeight.w700,
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: isDark ? AppColors.brand.withAlpha(25) : AppColors.brandContainer,
+                    child: Text(
+                      member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : 'M',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? AppColors.brand : AppColors.brandDark,
                         fontSize: 14,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '#LF-${member.memberNumber} • ${member.phone ?? 'No Phone'}',
-                      style: AppTypography.bodySmall.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 11,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.fullName,
+                          style: AppTypography.titleMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '#LF-${member.memberNumber} • ${member.phone ?? 'No Phone'}',
+                          style: AppTypography.bodySmall.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AppBadge(
+                    label: member.isActive ? 'ACTIVE' : 'INACTIVE',
+                    color: member.isActive ? AppColors.brand : AppColors.warning,
+                  ),
+                ],
+              ),
+              if (member.tags.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: member.tags.take(3).map((tag) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.brand.withAlpha(20) : AppColors.brandContainer,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.brand.withAlpha(40)),
                       ),
-                    ),
-                  ],
+                      child: Text(
+                        tag,
+                        style: AppTypography.bodySmall.copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.brand : AppColors.brandDark,
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
-              ),
-              AppBadge(
-                label: member.isActive ? 'ACTIVE' : 'INACTIVE',
-                color: member.isActive ? AppColors.brand : AppColors.warning,
-              ),
+              ],
             ],
           ),
         ),
@@ -290,25 +504,31 @@ class _MemberRosterCard extends StatelessWidget {
   }
 }
 
-class _AthleteProfileSheet extends StatefulWidget {
+class _AthleteProfileSheet extends ConsumerStatefulWidget {
   final Member member;
   const _AthleteProfileSheet({required this.member});
 
   @override
-  State<_AthleteProfileSheet> createState() => _AthleteProfileSheetState();
+  ConsumerState<_AthleteProfileSheet> createState() => _AthleteProfileSheetState();
 }
 
-class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
+class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
+  late Member _currentMember;
   bool _loading = true;
   String _planName = 'Standard Plan';
+  DateTime? _expiresAt;
+  DateTime? _startedAt;
   int _currentStreak = 0;
+  int _longestStreak = 0;
   int _totalVisits = 0;
   int _daysActive = 0;
   List<Map<String, dynamic>> _sessions = [];
+  bool _loggingCheckIn = false;
 
   @override
   void initState() {
     super.initState();
+    _currentMember = widget.member;
     _loadMemberDetails();
   }
 
@@ -324,7 +544,7 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
       final memRes = await client
           .from('memberships')
           .select('started_at, expires_at, status, membership_plans(name)')
-          .eq('member_id', widget.member.id)
+          .eq('member_id', _currentMember.id)
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -334,9 +554,11 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
         if (planData is Map && planData['name'] != null) {
           _planName = planData['name'].toString();
         }
-        final startedAt = DateTime.tryParse(memRes['started_at']?.toString() ?? '');
-        if (startedAt != null) {
-          _daysActive = DateTime.now().difference(startedAt).inDays.clamp(1, 9999);
+        _startedAt = DateTime.tryParse(memRes['started_at']?.toString() ?? '');
+        _expiresAt = DateTime.tryParse(memRes['expires_at']?.toString() ?? '');
+
+        if (_startedAt != null) {
+          _daysActive = DateTime.now().difference(_startedAt!).inDays.clamp(1, 9999);
         }
       }
 
@@ -344,32 +566,107 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
       final attRes = await client
           .from('attendance')
           .select('id, check_in_at, source')
-          .eq('member_id', widget.member.id)
+          .eq('member_id', _currentMember.id)
           .order('check_in_at', ascending: false)
-          .limit(20);
+          .limit(30);
 
-      _totalVisits = attRes.length;
+      _totalVisits = (attRes as List).length;
       final dates = attRes
           .map((r) => DateTime.tryParse(r['check_in_at']?.toString() ?? ''))
-            .whereType<DateTime>()
-            .toList();
+          .whereType<DateTime>()
+          .toList();
 
-        final attendances = dates
-            .map((d) => Attendance(
-                  memberId: widget.member.id,
-                  gymId: widget.member.gymId,
-                  checkInAt: d,
-                ))
-            .toList();
+      final attendances = dates
+          .map((d) => Attendance(
+                memberId: _currentMember.id,
+                gymId: _currentMember.gymId,
+                checkInAt: d,
+              ))
+          .toList();
 
       final streakRes = computeStreak(attendances);
       _currentStreak = streakRes.current;
+      _longestStreak = streakRes.longest;
       _sessions = List<Map<String, dynamic>>.from(attRes);
     } catch (_) {
       // Graceful fallback on network error
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _handleManualCheckIn() async {
+    setState(() => _loggingCheckIn = true);
+    try {
+      final client = AppSupabase.client;
+      final idem = 'manual_${_currentMember.id}_${DateTime.now().millisecondsSinceEpoch}';
+
+      await client.from('attendance').insert({
+        'gym_id': _currentMember.gymId,
+        'member_id': _currentMember.id,
+        'source': 'manual',
+        'check_in_at': DateTime.now().toUtc().toIso8601String(),
+        'idempotency_key': idem,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Manual check-in logged for ${_currentMember.fullName}'),
+            backgroundColor: AppColors.brand,
+          ),
+        );
+        await _loadMemberDetails();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppErrorMapper.toUserMessage(e)),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loggingCheckIn = false);
+    }
+  }
+
+  void _openEditDialog() async {
+    final updated = await showDialog<Member>(
+      context: context,
+      builder: (_) => EditMemberDialog(member: _currentMember),
+    );
+
+    if (updated != null && mounted) {
+      setState(() => _currentMember = updated);
+      _loadMemberDetails();
+    }
+  }
+
+  void _openRenewDialog() async {
+    final renewed = await showDialog<bool>(
+      context: context,
+      builder: (_) => RenewMembershipDialog(
+        member: _currentMember,
+        currentPlanName: _planName,
+        currentExpiresAt: _expiresAt,
+      ),
+    );
+
+    if (renewed == true && mounted) {
+      _loadMemberDetails();
+    }
+  }
+
+  void _openQuickContactDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => MemberQuickContactDialog(
+        member: _currentMember,
+        membershipExpiresAt: _expiresAt,
+      ),
+    );
   }
 
   String _formatSessionTime(String? dateStr) {
@@ -380,16 +677,33 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
     final diff = now.difference(dt);
     if (diff.inDays == 0) return 'Today ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     if (diff.inDays == 1) return 'Yesterday ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    return '${diff.inDays} days ago';
+    return '${diff.inDays} days ago (${dt.month}/${dt.day})';
+  }
+
+  String _getExpirySubtitle() {
+    if (_expiresAt == null) return 'No expiration set';
+    final now = DateTime.now();
+    final diff = _expiresAt!.difference(now).inDays;
+    final dateFormatted = '${_expiresAt!.year}-${_expiresAt!.month.toString().padLeft(2, '0')}-${_expiresAt!.day.toString().padLeft(2, '0')}';
+    if (diff < 0) {
+      return 'Expired ($dateFormatted)';
+    } else if (diff == 0) {
+      return 'Expires today ($dateFormatted)';
+    } else if (diff <= 7) {
+      return 'Expires in $diff days ($dateFormatted)';
+    } else {
+      return 'Active until $dateFormatted';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -405,31 +719,182 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Header Section
-            Text(
-              widget.member.fullName,
-              style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
+            // ── Header Section ──────────────────────────────────────────
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: isDark ? AppColors.brand.withAlpha(25) : AppColors.brandContainer,
+                  child: Text(
+                    _currentMember.fullName.isNotEmpty ? _currentMember.fullName[0].toUpperCase() : 'M',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? AppColors.brand : AppColors.brandDark,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _currentMember.fullName,
+                              style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800, fontSize: 18),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          AppBadge(
+                            label: _currentMember.isActive ? 'ACTIVE' : 'INACTIVE',
+                            color: _currentMember.isActive ? AppColors.brand : AppColors.warning,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '#LF-${_currentMember.memberNumber} • ${_currentMember.phone ?? 'No Phone'}',
+                        style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Text(
-              '$_planName • #LF-${widget.member.memberNumber}',
-              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+
+            if (_currentMember.tags.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: _currentMember.tags.map((tag) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.brand.withAlpha(25) : AppColors.brandContainer,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.brand.withAlpha(40)),
+                    ),
+                    child: Text(
+                      tag,
+                      style: AppTypography.bodySmall.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.brand : AppColors.brandDark,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // ── Quick Action Bar ────────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: _QuickActionButton(
+                    icon: Icons.edit_outlined,
+                    label: 'Edit',
+                    onTap: _openEditDialog,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QuickActionButton(
+                    icon: Icons.autorenew_rounded,
+                    label: 'Renew',
+                    onTap: _openRenewDialog,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QuickActionButton(
+                    icon: Icons.send_rounded,
+                    label: 'Message',
+                    onTap: _openQuickContactDialog,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QuickActionButton(
+                    icon: _loggingCheckIn ? Icons.hourglass_top_rounded : Icons.check_circle_outline_rounded,
+                    label: 'Check In',
+                    color: AppColors.brand,
+                    onTap: _loggingCheckIn ? null : _handleManualCheckIn,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
 
             if (_loading) ...[
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
             ] else ...[
-              // Attendance / Streak / Membership Real Table
+              // ── Membership Info Card ──────────────────────────────────
               Container(
                 decoration: BoxDecoration(
                   color: cs.surface,
-                  borderRadius: AppRadii.r8,
+                  borderRadius: AppRadii.r12,
                   border: Border.all(color: cs.outline),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.all(14),
                 child: Column(
                   children: [
-                    _DataRow(label: 'Total Visits', value: '$_totalVisits visits'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'MEMBERSHIP TIER',
+                              style: AppTypography.labelAthletic.copyWith(
+                                fontSize: 10,
+                                letterSpacing: 1.2,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _planName,
+                              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w800, fontSize: 15),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (_expiresAt != null && _expiresAt!.isBefore(DateTime.now()))
+                                ? AppColors.error.withAlpha(20)
+                                : AppColors.brand.withAlpha(20),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: (_expiresAt != null && _expiresAt!.isBefore(DateTime.now()))
+                                  ? AppColors.error
+                                  : AppColors.brand,
+                            ),
+                          ),
+                          child: Text(
+                            _getExpirySubtitle(),
+                            style: AppTypography.bodySmall.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: (_expiresAt != null && _expiresAt!.isBefore(DateTime.now()))
+                                  ? AppColors.error
+                                  : (isDark ? AppColors.brand : AppColors.brandDark),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    _DataRow(label: 'Total Check-ins', value: '$_totalVisits visits'),
                     const Divider(height: 16),
                     _DataRow(
                       label: 'Current Streak',
@@ -437,17 +902,32 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
                     ),
                     const Divider(height: 16),
                     _DataRow(
-                      label: 'Membership',
-                      value: _daysActive > 0 ? '$_daysActive days active' : (widget.member.isActive ? 'Active' : 'Inactive'),
+                      label: 'Longest Streak',
+                      value: '$_longestStreak days',
+                    ),
+                    const Divider(height: 16),
+                    _DataRow(
+                      label: 'Account Active',
+                      value: _daysActive > 0 ? '$_daysActive days' : (_currentMember.isActive ? 'Active' : 'Inactive'),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 18),
 
-              Text(
-                'Recent Check-in Sessions',
-                style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+              // ── Recent Attendance Sessions ────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Recent Check-in Sessions',
+                    style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '${_sessions.length} total',
+                    style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
 
@@ -467,33 +947,102 @@ class _AthleteProfileSheetState extends State<_AthleteProfileSheet> {
                   ),
                 )
               else
-                ..._sessions.take(5).map((s) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: cs.surface,
-                          borderRadius: AppRadii.r8,
-                          border: Border.all(color: cs.outline),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Gym Check-in (${s['source'] ?? 'qr_self'})',
-                              style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-                            ),
-                            Text(
-                              _formatSessionTime(s['check_in_at']?.toString()),
-                              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
-                            ),
-                          ],
-                        ),
+                ..._sessions.take(6).map((s) {
+                  final src = (s['source'] as String? ?? 'qr_self').toLowerCase();
+                  final isManual = src == 'manual';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: cs.surface,
+                        borderRadius: AppRadii.r8,
+                        border: Border.all(color: cs.outline),
                       ),
-                    )),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isManual ? Icons.edit_calendar_rounded : Icons.qr_code_scanner_rounded,
+                                size: 16,
+                                color: isManual ? AppColors.warning : AppColors.brand,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isManual ? 'Manual Check-in' : 'QR Scan ($src)',
+                                style: AppTypography.bodySmall.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            _formatSessionTime(s['check_in_at']?.toString()),
+                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
               const SizedBox(height: 14),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Color? color;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final targetColor = color ?? (isDark ? Colors.white : AppColors.lTextPrimary);
+
+    return Material(
+      color: cs.surface,
+      borderRadius: AppRadii.r8,
+      child: InkWell(
+        borderRadius: AppRadii.r8,
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: AppRadii.r8,
+            border: Border.all(color: cs.outline),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: targetColor),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: AppTypography.bodySmall.copyWith(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: targetColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );

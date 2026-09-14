@@ -99,12 +99,16 @@ Deno.serve(async (req: Request) => {
       return jsonError('Username is already taken. Please choose another username.', 409);
     }
 
+    if (!/^[a-zA-Z0-9_\-]+$/.test(activation_token)) {
+      return jsonError('This activation token is invalid.', 400);
+    }
+
     // --- 3. Validate Activation Token ---
     const tokenHash = await sha256Hex(activation_token);
     const { data: tokenRecord } = await admin
       .from('member_activation_tokens')
       .select('id, gym_id, created_by, token_type, month_key, expires_at, used_at, revoked_at')
-      .or(`token_hash.eq.${tokenHash},raw_token.eq.${activation_token}`)
+      .eq('token_hash', tokenHash)
       .maybeSingle();
 
     let gymId: string;

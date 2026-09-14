@@ -47,14 +47,19 @@ Deno.serve(async (req: Request) => {
       return jsonError('This QR code is not valid for LiftFlow.', 400);
     }
 
+    // Strict regex validation for token characters (alphanumeric, dashes, underscores)
+    if (!/^[a-zA-Z0-9_\-]+$/.test(token)) {
+      return jsonError('This QR code is not valid for LiftFlow.', 400);
+    }
+
     const tokenHash = await sha256Hex(token);
     const admin = createAdminClient();
 
-    // Query token details joined with gym
+    // Query token details joined with gym using safe hash lookup
     const { data: tokenRecord } = await admin
       .from('member_activation_tokens')
       .select('id, gym_id, token_type, month_key, expires_at, used_at, revoked_at, gyms(id, name, slug)')
-      .or(`token_hash.eq.${tokenHash},raw_token.eq.${token}`)
+      .eq('token_hash', tokenHash)
       .maybeSingle();
 
     if (tokenRecord) {
