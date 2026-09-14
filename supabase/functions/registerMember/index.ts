@@ -137,8 +137,12 @@ Deno.serve(async (req: Request) => {
         const currentMonth = now.getUTCMonth() + 1;
 
         if (!isNaN(tokenYear) && !isNaN(tokenMonth)) {
-          if (tokenYear < currentYear || (tokenYear === currentYear && tokenMonth < currentMonth)) {
-            return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+          if (tokenYear !== currentYear || tokenMonth !== currentMonth) {
+            if (tokenYear < currentYear || (tokenYear === currentYear && tokenMonth < currentMonth)) {
+              return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+            } else {
+              return jsonError('This activation QR is not valid for the current month.', 400);
+            }
           }
         }
 

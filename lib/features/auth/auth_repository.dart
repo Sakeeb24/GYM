@@ -186,12 +186,13 @@ class SupabaseAuthRepository implements AuthRepository {
         },
       );
     } catch (e) {
+      if (e is FunctionException) rethrow;
       final errStr = e.toString().toLowerCase();
 
       if (errStr.contains('already registered') || errStr.contains('already exists') || errStr.contains('duplicate')) {
         throw const FunctionException(
           status: 409,
-          details: 'This phone number is already registered. Please log in with your username and password.',
+          details: 'This phone number or username is already registered. Please log in with your credentials.',
         );
       }
       if (errStr.contains('username') && (errStr.contains('taken') || errStr.contains('already'))) {
@@ -201,7 +202,6 @@ class SupabaseAuthRepository implements AuthRepository {
         );
       }
       if (errStr.contains('expired') || errStr.contains('revoked') || errStr.contains('consumed') || errStr.contains('qr code') || errStr.contains('activation')) {
-        if (e is FunctionException) rethrow;
         throw const FunctionException(
           status: 410,
           details: 'This activation QR has expired or is invalid. Please ask your gym owner for a new QR code.',

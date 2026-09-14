@@ -85,10 +85,19 @@ class _OwnerActivationQrScreenState extends ConsumerState<OwnerActivationQrScree
     });
   }
 
-  String _formatTimer(int seconds) {
+  String _timerLabel(int seconds) {
+    if (seconds >= 86400) {
+      final days = seconds ~/ 86400;
+      return 'Valid for $days day${days > 1 ? 's' : ''}';
+    }
+    if (seconds >= 3600) {
+      final hours = seconds ~/ 3600;
+      final m = (seconds % 3600) ~/ 60;
+      return 'Valid for ${hours}h ${m}m';
+    }
     final m = (seconds ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
-    return '$m:$s';
+    return 'Expires in $m:$s';
   }
 
   @override
@@ -257,15 +266,15 @@ class _OwnerActivationQrScreenState extends ConsumerState<OwnerActivationQrScree
                                                 : (_remainingSeconds < 15 ? AppColors.warning : AppColors.brand),
                                           ),
                                           const SizedBox(width: 6),
-                                          Text(
-                                            isExpired ? 'QR Code Expired' : 'Expires in ${_formatTimer(_remainingSeconds)}',
-                                            style: AppTypography.bodySmall.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                              color: isExpired
-                                                  ? AppColors.error
-                                                  : (_remainingSeconds < 15 ? AppColors.warning : cs.onSurface),
+                                            Text(
+                                              isExpired ? 'QR Code Expired' : _timerLabel(_remainingSeconds),
+                                              style: AppTypography.bodySmall.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: isExpired
+                                                    ? AppColors.error
+                                                    : (_remainingSeconds < 15 ? AppColors.warning : cs.onSurface),
+                                              ),
                                             ),
-                                          ),
                                         ],
                                       ),
                                        Text(
