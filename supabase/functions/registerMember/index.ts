@@ -254,15 +254,15 @@ Deno.serve(async (req: Request) => {
     }
 
     const memberId = rpcData?.member_id;
-    const gymId = rpcData?.gym_id;
+    const resolvedGymId = rpcData?.gym_id ?? gymId;
     const tokenId = rpcData?.token_id;
     const tokenType = rpcData?.token_type ?? 'monthly';
 
     // --- 5. Audit log (Non-blocking) ---
     try {
-      if (gymId && memberId) {
+      if (resolvedGymId && memberId) {
         await admin.from('audit_logs').insert({
-          gym_id: gymId,
+          gym_id: resolvedGymId,
           actor_user_id: newUserId,
           action: 'member.registered_via_activation_qr',
           entity: 'member',

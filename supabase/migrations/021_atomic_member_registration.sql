@@ -83,7 +83,6 @@ begin
     if v_token_type = 'single_use' then
       update public.member_activation_tokens
       set used_at = now(),
-          used_by_profile_id = p_user_id,
           updated_at = now()
       where id = v_token_id
         and used_at is null
@@ -196,6 +195,13 @@ begin
     status = excluded.status,
     phone_verified = excluded.phone_verified,
     updated_at = now();
+
+  -- 5b. Populate used_by_profile_id on single-use token now that profile exists
+  if v_claimed_token_id is not null then
+    update public.member_activation_tokens
+    set used_by_profile_id = p_user_id
+    where id = v_claimed_token_id;
+  end if;
 
   -- 6. Link member row to profile
   update public.members
