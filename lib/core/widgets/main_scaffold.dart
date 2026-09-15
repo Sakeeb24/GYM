@@ -22,6 +22,8 @@ import '../../features/profile/presentation/member_profile_screen.dart';
 
 import 'owner_web_scaffold.dart';
 
+final mainNavigationIndexProvider = StateProvider<int>((ref) => 0);
+
 class MainScaffold extends ConsumerStatefulWidget {
   final AppRole role;
   const MainScaffold({super.key, required this.role});
@@ -31,7 +33,7 @@ class MainScaffold extends ConsumerStatefulWidget {
 }
 
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
-  int _index = 0;
+
 
   void _showProfileSheet(BuildContext context) {
     final profile = ref.read(authStateProvider).valueOrNull;
@@ -149,9 +151,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       return const OwnerWebScaffold();
     }
 
+    final selectedIndex = ref.watch(mainNavigationIndexProvider);
     final pages = _rolePages(widget.role);
     final destinations = _roleDestinations(widget.role);
-    final safeIndex = _index < pages.length ? _index : 0;
+    final safeIndex = selectedIndex < pages.length ? selectedIndex : 0;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final profile = ref.watch(authStateProvider).valueOrNull;
@@ -227,7 +230,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         ),
         child: NavigationBar(
           selectedIndex: safeIndex,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: (i) => ref.read(mainNavigationIndexProvider.notifier).state = i,
           destinations: destinations,
           height: 64,
         ),

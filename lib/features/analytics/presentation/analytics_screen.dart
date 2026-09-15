@@ -160,6 +160,7 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   int _selectedDays = 30;
+  int? _hoveredIndex;
 
   String _formatPeakHours(List<Map<String, dynamic>> hourly) {
     if (hourly.isEmpty) return 'Standard: 6 AM — 9 PM';
@@ -202,35 +203,69 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Date Range Selector ──────────────────────────────
-                Row(
-                  children: [
-                    _TimeFilterChip(
-                      label: '7 Days',
-                      selected: _selectedDays == 7,
-                      onTap: () => setState(() => _selectedDays = 7),
-                    ),
-                    const SizedBox(width: 8),
-                    _TimeFilterChip(
-                      label: '30 Days',
-                      selected: _selectedDays == 30,
-                      onTap: () => setState(() => _selectedDays = 30),
-                    ),
-                    const SizedBox(width: 8),
-                    _TimeFilterChip(
-                      label: '90 Days',
-                      selected: _selectedDays == 90,
-                      onTap: () => setState(() => _selectedDays = 90),
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.dSurface : cs.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: cs.outline),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _SegmentTab(
+                          label: '7 Days',
+                          selected: _selectedDays == 7,
+                          onTap: () => setState(() {
+                            _selectedDays = 7;
+                            _hoveredIndex = null;
+                          }),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: _SegmentTab(
+                          label: '30 Days',
+                          selected: _selectedDays == 30,
+                          onTap: () => setState(() {
+                            _selectedDays = 30;
+                            _hoveredIndex = null;
+                          }),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: _SegmentTab(
+                          label: '90 Days',
+                          selected: _selectedDays == 90,
+                          onTap: () => setState(() {
+                            _selectedDays = 90;
+                            _hoveredIndex = null;
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 
-                // ── 1. Attendance Overview ───────────────────────────
+                // ── 1. Attendance Volume Overview ───────────────────
                 Container(
                   decoration: BoxDecoration(
-                    color: cs.surface,
+                    color: isDark ? AppColors.dSurface : cs.surface,
                     borderRadius: AppRadii.r12,
-                    border: Border.all(color: cs.outline),
+                    border: Border.all(
+                      color: isDark ? AppColors.brand.withAlpha(40) : cs.outline,
+                    ),
+                    boxShadow: isDark
+                        ? [
+                            BoxShadow(
+                              color: AppColors.brand.withAlpha(10),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
                   ),
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -246,22 +281,41 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          Text(
-                            peakHours,
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.flameStreak,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.flameStreak.withAlpha(25),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: AppColors.flameStreak.withAlpha(80),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.local_fire_department_rounded, size: 12, color: AppColors.flameStreak),
+                                const SizedBox(width: 4),
+                                Text(
+                                  peakHours,
+                                  style: AppTypography.bodySmall.copyWith(
+                                    color: AppColors.flameStreak,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
                         '${data.totalCheckins} Check-ins',
                         style: AppTypography.metricLarge.copyWith(
                           fontWeight: FontWeight.w800,
                           fontSize: 28,
+                          letterSpacing: -0.5,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -284,6 +338,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           value: '${data.retentionRate.toStringAsFixed(1)}%',
                           subtitle: 'Active vs churned',
                           icon: const Icon(Icons.verified_user_outlined),
+                          accentColor: AppColors.success,
                         ),
                       ),
                     ),
@@ -295,6 +350,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                           value: '${data.activeMembers}',
                           subtitle: 'Enrolled in gym',
                           icon: const Icon(Icons.groups_outlined),
+                          accentColor: AppColors.brand,
                         ),
                       ),
                     ),
@@ -302,10 +358,23 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ── 3. Daily Attendance Trend ────────────────────────
-                Text(
-                  'Daily Check-in Activity',
-                  style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+                // ── 3. Interactive Daily Attendance Chart ────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Daily Check-in Activity',
+                      style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    if (data.dailyTrend.isNotEmpty)
+                      Text(
+                        'Last ${data.dailyTrend.take(14).length} days',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 10),
 
@@ -322,64 +391,20 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     ),
                   )
                 else
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cs.surface,
-                      borderRadius: AppRadii.r12,
-                      border: Border.all(color: cs.outline),
-                    ),
-                    child: Column(
-                      children: data.dailyTrend.take(10).map((day) {
-                        final maxVal = data.dailyTrend.fold<int>(1, (max, d) => d.count > max ? d.count : max);
-                        final progress = (day.count / maxVal).clamp(0.05, 1.0);
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 85,
-                                child: Text(
-                                  day.date,
-                                  style: AppTypography.bodySmall.copyWith(
-                                    color: cs.onSurfaceVariant,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    minHeight: 14,
-                                    backgroundColor: cs.outline.withAlpha(50),
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      isDark ? AppColors.brand : AppColors.brandDark,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 32,
-                                child: Text(
-                                  '${day.count}',
-                                  textAlign: TextAlign.end,
-                                  style: AppTypography.bodySmall.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
+                  _DailyBarChart(
+                    trend: data.dailyTrend.take(14).toList(),
+                    selectedIndex: _hoveredIndex,
+                    onSelect: (index) => setState(() => _hoveredIndex = index),
                   ),
+                const SizedBox(height: 20),
+
+                // ── 4. Traffic Distribution Periods ──────────────────
+                Text(
+                  'Peak Attendance Distribution',
+                  style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                _TrafficDistributionCard(total: data.totalCheckins, hourly: data.hourlyDistribution),
                 const SizedBox(height: 20),
               ],
             ),
@@ -395,12 +420,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   }
 }
 
-class _TimeFilterChip extends StatelessWidget {
+class _SegmentTab extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
-  const _TimeFilterChip({
+  const _SegmentTab({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -411,17 +436,289 @@ class _TimeFilterChip extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return ChoiceChip(
-      label: Text(label, style: AppTypography.bodySmall.copyWith(fontSize: 11, fontWeight: FontWeight.w600)),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      selectedColor: isDark ? AppColors.brand.withAlpha(30) : AppColors.brandContainer,
-      side: BorderSide(
-        color: selected
-            ? (isDark ? AppColors.brand : AppColors.brandDark)
-            : cs.outline,
+    return Material(
+      color: selected
+          ? (isDark ? AppColors.brand.withAlpha(35) : AppColors.brandContainer)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? (isDark ? AppColors.brand : AppColors.brandDark)
+                  : Colors.transparent,
+              width: 1.0,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? (isDark ? AppColors.brand : AppColors.brandDark)
+                    : cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 }
+
+class _DailyBarChart extends StatelessWidget {
+  final List<DailyCheckInStat> trend;
+  final int? selectedIndex;
+  final ValueChanged<int?> onSelect;
+
+  const _DailyBarChart({
+    required this.trend,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final maxCount = trend.fold<int>(1, (max, d) => d.count > max ? d.count : max);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.dSurface : cs.surface,
+        borderRadius: AppRadii.r12,
+        border: Border.all(color: cs.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (selectedIndex != null && selectedIndex! < trend.length) ...[
+            Row(
+              children: [
+                Text(
+                  trend[selectedIndex!].date,
+                  style: AppTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.brand : AppColors.brandDark,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${trend[selectedIndex!].count} check-ins',
+                  style: AppTypography.bodySmall.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          SizedBox(
+            height: 130,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(trend.length, (i) {
+                final day = trend[i];
+                final ratio = maxCount > 0 ? (day.count / maxCount).clamp(0.08, 1.0) : 0.08;
+                final isSelected = selectedIndex == i;
+                final isPeak = day.count == maxCount && maxCount > 0;
+
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => onSelect(isSelected ? null : i),
+                    child: Container(
+                      color: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (isSelected || isPeak)
+                            Text(
+                              '${day.count}',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: isPeak ? AppColors.flameStreak : (isDark ? AppColors.brand : AppColors.brandDark),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 12),
+                          const SizedBox(height: 4),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: FractionallySizedBox(
+                                heightFactor: ratio,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: isPeak
+                                          ? [AppColors.flameStreak, AppColors.flameStreak.withAlpha(160)]
+                                          : (isSelected
+                                              ? [AppColors.brand, AppColors.brand.withAlpha(200)]
+                                              : (isDark
+                                                  ? [AppColors.brand.withAlpha(160), AppColors.brand.withAlpha(60)]
+                                                  : [AppColors.brandDark, AppColors.brandDark.withAlpha(120)])),
+                                    ),
+                                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                                    border: isSelected
+                                        ? Border.all(color: Colors.white, width: 1.0)
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            day.date.length > 5 ? day.date.substring(day.date.length - 5) : day.date,
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected
+                                  ? (isDark ? AppColors.brand : AppColors.brandDark)
+                                  : cs.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrafficDistributionCard extends StatelessWidget {
+  final int total;
+  final List<Map<String, dynamic>> hourly;
+
+  const _TrafficDistributionCard({
+    required this.total,
+    required this.hourly,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final morningCount = hourly.where((h) => ((h['hour'] as num?)?.toInt() ?? 0) < 12).fold<int>(0, (sum, h) => sum + ((h['count'] as num?)?.toInt() ?? 0));
+    final afternoonCount = hourly.where((h) => ((h['hour'] as num?)?.toInt() ?? 0) >= 12 && ((h['hour'] as num?)?.toInt() ?? 0) < 17).fold<int>(0, (sum, h) => sum + ((h['count'] as num?)?.toInt() ?? 0));
+    final eveningCount = hourly.where((h) => ((h['hour'] as num?)?.toInt() ?? 0) >= 17).fold<int>(0, (sum, h) => sum + ((h['count'] as num?)?.toInt() ?? 0));
+
+    final totalPeriod = (morningCount + afternoonCount + eveningCount);
+    final denom = totalPeriod > 0 ? totalPeriod : (total > 0 ? total : 1);
+
+    final morningPct = (morningCount / denom).clamp(0.0, 1.0);
+    final afternoonPct = (afternoonCount / denom).clamp(0.0, 1.0);
+    final eveningPct = (eveningCount / denom).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.dSurface : cs.surface,
+        borderRadius: AppRadii.r12,
+        border: Border.all(color: cs.outline),
+      ),
+      child: Column(
+        children: [
+          _TrafficBarRow(
+            label: 'Morning (6 AM — 11 AM)',
+            count: morningCount,
+            percentage: morningPct,
+            color: isDark ? AppColors.brand : AppColors.brandDark,
+          ),
+          const SizedBox(height: 12),
+          _TrafficBarRow(
+            label: 'Afternoon (12 PM — 4 PM)',
+            count: afternoonCount,
+            percentage: afternoonPct,
+            color: AppColors.warning,
+          ),
+          const SizedBox(height: 12),
+          _TrafficBarRow(
+            label: 'Evening Peak (5 PM — 10 PM)',
+            count: eveningCount,
+            percentage: eveningPct,
+            color: AppColors.flameStreak,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrafficBarRow extends StatelessWidget {
+  final String label;
+  final int count;
+  final double percentage;
+  final Color color;
+
+  const _TrafficBarRow({
+    required this.label,
+    required this.count,
+    required this.percentage,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              '${(percentage * 100).toInt()}% ($count)',
+              style: AppTypography.bodySmall.copyWith(
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: percentage,
+            minHeight: 8,
+            backgroundColor: cs.outline.withAlpha(50),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

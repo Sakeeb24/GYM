@@ -1,6 +1,5 @@
-// lib/features/auth/presentation/account_setup_screen.dart
-// Registration Step 3: Username & Password Account Creation
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -37,9 +36,32 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   String? _localError;
   bool _submitting = false;
   bool _created = false;
+  bool _isTokenError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _username.addListener(_onFieldChanged);
+    _password.addListener(_onFieldChanged);
+    _confirmPassword.addListener(_onFieldChanged);
+  }
+
+  void _onFieldChanged() {
+    if (_localError != null) {
+      setState(() {
+        _localError = null;
+        _isTokenError = false;
+      });
+    } else {
+      setState(() {});
+    }
+  }
 
   @override
   void dispose() {
+    _username.removeListener(_onFieldChanged);
+    _password.removeListener(_onFieldChanged);
+    _confirmPassword.removeListener(_onFieldChanged);
     _username.dispose();
     _password.dispose();
     _confirmPassword.dispose();
@@ -53,23 +75,31 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
     final cp = _confirmPassword.text;
 
     if (u.isEmpty) {
+      HapticFeedback.mediumImpact();
       setState(() => _localError = 'Please choose a username.');
       return;
     }
     if (u.length < 3) {
+      HapticFeedback.mediumImpact();
       setState(() => _localError = 'Username must be at least 3 characters.');
       return;
     }
     if (p.length < 8) {
+      HapticFeedback.mediumImpact();
       setState(() => _localError = 'Password must be at least 8 characters.');
       return;
     }
     if (p != cp) {
+      HapticFeedback.mediumImpact();
       setState(() => _localError = 'Passwords do not match. Please re-enter.');
       return;
     }
 
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _isTokenError = false;
+    });
+
     try {
       await ref.read(authActionsProvider).registerMember(
             fullName: widget.fullName,
@@ -79,16 +109,28 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
             password: p,
           );
 
+      HapticFeedback.heavyImpact();
       setState(() => _created = true);
 
       // Brief celebration pause before directing to login
-      await Future.delayed(const Duration(milliseconds: 1200));
+      await Future.delayed(const Duration(milliseconds: 1400));
       if (mounted) {
         context.go('/login');
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _localError = AppErrorMapper.toUserMessage(e));
+        final rawMsg = e.toString().toLowerCase();
+        final mapped = AppErrorMapper.toUserMessage(e);
+        final isToken = rawMsg.contains('token') ||
+            rawMsg.contains('activation') ||
+            rawMsg.contains('expired') ||
+            rawMsg.contains('invalid qr');
+
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _localError = mapped;
+          _isTokenError = isToken;
+        });
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -98,6 +140,15 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final u = _username.text.trim();
+    final p = _password.text;
+    final cp = _confirmPassword.text;
+
+    final hasMinLength = p.length >= 8;
+    final passwordsMatch = p.isNotEmpty && p == cp;
+    final hasValidUsername = u.length >= 3;
 
     return Scaffold(
       appBar: AppBar(
@@ -116,32 +167,65 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 380),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const AuthStepIndicator(current: 3, total: 3),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   if (_created) ...[
-                    const SizedBox(height: 32),
-                    const Center(
-                      child: CircleAvatar(
-                        radius: 36,
-                        backgroundColor: AppColors.brand,
-                        child: Icon(Icons.check_rounded, size: 40, color: Colors.black),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: AppColors.brand,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.brand.withAlpha(120),
+                              blurRadius: 16,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.check_rounded, size: 40, color: Colors.black),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     Center(
                       child: Text(
                         'Account Created!',
                         style: AppTypography.headlineMedium.copyWith(fontWeight: FontWeight.w800),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    if (widget.gymName != null && widget.gymName!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.brand.withAlpha(20),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.brand.withAlpha(60)),
+                          ),
+                          child: Text(
+                            'WELCOME TO ${widget.gymName!.toUpperCase()}',
+                            style: AppTypography.labelAthletic.copyWith(
+                              fontSize: 11,
+                              letterSpacing: 1.0,
+                              color: isDark ? AppColors.brand : AppColors.brandDark,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
                     Center(
                       child: Text(
                         'Redirecting you to sign in with your new credentials...',
@@ -149,7 +233,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                         style: AppTypography.bodyMedium.copyWith(color: cs.onSurfaceVariant),
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                   ] else if (widget.activationToken.isEmpty || widget.phone.isEmpty) ...[
                     // Safeguard if user directly navigates to Step 3 without completing Step 2
                     Container(
@@ -201,15 +285,16 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                           : 'Step 3 of 3: Set up your username and password to access your gym.',
                       style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
                     // Username
                     AppTextField(
                       label: 'Username',
                       controller: _username,
                       hint: 'e.g. alex_lift',
+                      textInputAction: TextInputAction.next,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
 
                     // Password
                     AppTextField(
@@ -217,6 +302,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                       controller: _password,
                       obscure: _obscure,
                       hint: 'Minimum 8 characters',
+                      textInputAction: TextInputAction.next,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -226,7 +312,7 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
 
                     // Confirm Password
                     AppTextField(
@@ -237,11 +323,43 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _submit(),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
+
+                    // Compact athletic credential requirement badges
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _RequirementPill(
+                            label: '3+ USER',
+                            isMet: hasValidUsername,
+                          ),
+                          _RequirementPill(
+                            label: '8+ PASS',
+                            isMet: hasMinLength,
+                          ),
+                          _RequirementPill(
+                            label: 'MATCH',
+                            isMet: passwordsMatch,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
 
                     if (_localError != null) ...[
-                      AuthErrorBanner(message: _localError!),
-                      const SizedBox(height: 16),
+                      AuthErrorBanner(
+                        message: _localError!,
+                        onRetry: _isTokenError
+                            ? () => context.go('/verify-gym', extra: {
+                                  'fullName': widget.fullName,
+                                  'phone': widget.phone,
+                                })
+                            : null,
+                        retryLabel: _isTokenError ? 'Re-scan Gym QR' : null,
+                      ),
+                      const SizedBox(height: 10),
                     ],
 
                     AppButton(
@@ -264,6 +382,54 @@ class _AccountSetupScreenState extends ConsumerState<AccountSetupScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RequirementPill extends StatelessWidget {
+  final String label;
+  final bool isMet;
+
+  const _RequirementPill({required this.label, required this.isMet});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: isMet
+            ? AppColors.success.withAlpha(25)
+            : (isDark ? AppColors.dSurfaceElevated : cs.surfaceContainerHighest.withAlpha(80)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isMet ? AppColors.success.withAlpha(120) : cs.outlineVariant.withAlpha(80),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isMet ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 12,
+            color: isMet ? AppColors.success : cs.onSurfaceVariant.withAlpha(140),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppTypography.labelAthletic.copyWith(
+              fontSize: 10,
+              letterSpacing: 0.5,
+              fontWeight: isMet ? FontWeight.w700 : FontWeight.w500,
+              color: isMet ? AppColors.success : cs.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

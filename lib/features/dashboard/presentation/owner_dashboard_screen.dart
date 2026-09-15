@@ -1,5 +1,3 @@
-// lib/features/dashboard/presentation/owner_dashboard_screen.dart
-// Clean, Modern Gym Dashboard (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +9,7 @@ import '../../../core/widgets/app_progress_bar.dart';
 import '../../../core/widgets/app_stat_card.dart';
 import '../../../core/widgets/app_error_state.dart';
 import '../../../core/widgets/app_loading_state.dart';
+import '../../../core/widgets/main_scaffold.dart';
 import '../../auth/auth_notifier.dart';
 
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) => SupabaseDashboardRepository());
@@ -54,17 +53,29 @@ class OwnerDashboardScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── 1. Clean Header Greeting ──────────────────────────
-                Text(
-                  '$greeting, $ownerName',
-                  style: AppTypography.headlineLarge.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: cs.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "Here is your real-time gym performance summary",
-                  style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$greeting, $ownerName',
+                            style: AppTypography.headlineLarge.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "Here is your real-time gym performance summary",
+                            style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -89,12 +100,26 @@ class OwnerDashboardScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
 
                 // ── 5. Real Recent Activity List ──────────────────────
-                Text(
-                  'Recent Activity',
-                  style: AppTypography.titleMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Recent Activity',
+                      style: AppTypography.titleMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    if (stats.recentActivity.isNotEmpty)
+                      Text(
+                        '${stats.recentActivity.length} check-ins',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 10),
                 _RecentActivityList(activity: stats.recentActivity),
@@ -128,9 +153,21 @@ class _AttendanceHeroCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cs.surface,
+        color: isDark ? AppColors.dSurface : cs.surface,
         borderRadius: AppRadii.r12,
-        border: Border.all(color: cs.outline),
+        border: Border.all(
+          color: isDark ? AppColors.brand.withAlpha(40) : cs.outline,
+          width: isDark ? 1.2 : 1.0,
+        ),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: AppColors.brand.withAlpha(12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -139,36 +176,91 @@ class _AttendanceHeroCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Today Check-in Rate',
-                style: AppTypography.bodySmall.copyWith(
-                  color: cs.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Today Check-in Rate',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.brand.withAlpha(25) : AppColors.brandContainer,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isDark ? AppColors.brand.withAlpha(60) : AppColors.brandDark.withAlpha(60),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.brand : AppColors.brandDark,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'LIVE',
+                          style: AppTypography.labelAthletic.copyWith(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppColors.brand : AppColors.brandDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               Text(
                 '${stats.checkedInToday} of ${stats.totalMembers} active members',
                 style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.brand,
+                  color: isDark ? AppColors.brand : AppColors.brandDark,
                   fontWeight: FontWeight.w600,
                   fontSize: 11,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            '$computedRate%',
-            style: AppTypography.metricLarge.copyWith(
-              color: cs.onSurface,
-              fontWeight: FontWeight.w800,
-              fontSize: 32,
-            ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$computedRate%',
+                style: AppTypography.metricLarge.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 32,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                stats.checkedInToday == 0
+                    ? 'Awaiting first athlete check-in'
+                    : '${stats.checkedInToday} check-in${stats.checkedInToday > 1 ? 's' : ''} recorded today',
+                style: AppTypography.bodySmall.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           AppProgressBar(
             progress: computedRate / 100.0,
-            height: 6,
+            height: 7,
             color: isDark ? AppColors.brand : AppColors.brandDark,
           ),
         ],
@@ -177,7 +269,7 @@ class _AttendanceHeroCard extends StatelessWidget {
   }
 }
 
-class _MetricGrid extends StatelessWidget {
+class _MetricGrid extends ConsumerWidget {
   final DashboardStats stats;
   const _MetricGrid({required this.stats});
 
@@ -194,7 +286,7 @@ class _MetricGrid extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cards = [
       StatCard(
         data: StatCardData(
@@ -202,7 +294,9 @@ class _MetricGrid extends StatelessWidget {
           value: '${stats.totalMembers}',
           subtitle: '${stats.totalMembers} enrolled',
           icon: const Icon(Icons.people_alt_outlined),
+          accentColor: AppColors.brand,
         ),
+        onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 1,
       ),
       StatCard(
         data: StatCardData(
@@ -210,7 +304,9 @@ class _MetricGrid extends StatelessWidget {
           value: '${stats.checkedInToday}',
           subtitle: stats.checkedInToday == 1 ? '1 athlete visited' : '${stats.checkedInToday} visits today',
           icon: const Icon(Icons.qr_code_scanner_outlined),
+          accentColor: AppColors.brand,
         ),
+        onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 2,
       ),
       StatCard(
         data: StatCardData(
@@ -218,7 +314,9 @@ class _MetricGrid extends StatelessWidget {
           value: '${stats.expiringMembers}',
           subtitle: 'In next 7 days',
           icon: const Icon(Icons.timer_outlined),
+          accentColor: stats.expiringMembers > 0 ? AppColors.warning : null,
         ),
+        onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 4,
       ),
       StatCard(
         data: StatCardData(
@@ -226,7 +324,9 @@ class _MetricGrid extends StatelessWidget {
           value: _formatRevenue(stats.monthlyRevenueCents),
           subtitle: 'MTD collections',
           icon: const Icon(Icons.currency_rupee_rounded),
+          accentColor: AppColors.success,
         ),
+        onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 6,
       ),
     ];
 
@@ -242,9 +342,9 @@ class _MetricGrid extends StatelessWidget {
   }
 }
 
-class _QuickActionsRow extends StatelessWidget {
+class _QuickActionsRow extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         Expanded(
@@ -260,9 +360,7 @@ class _QuickActionsRow extends StatelessWidget {
             label: 'Scan QR',
             icon: Icons.qr_code_scanner_rounded,
             isPrimary: true,
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Use the Check-in tab to scan passes.')),
-            ),
+            onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 3,
           ),
         ),
         const SizedBox(width: 8),
@@ -270,9 +368,7 @@ class _QuickActionsRow extends StatelessWidget {
           child: _ActionChip(
             label: 'Payments',
             icon: Icons.payments_outlined,
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('View transaction history in Payments tab.')),
-            ),
+            onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 6,
           ),
         ),
         const SizedBox(width: 8),
@@ -280,9 +376,7 @@ class _QuickActionsRow extends StatelessWidget {
           child: _ActionChip(
             label: 'Renewals',
             icon: Icons.autorenew_outlined,
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Manage expiring passes in Renewals tab.')),
-            ),
+            onTap: () => ref.read(mainNavigationIndexProvider.notifier).state = 4,
           ),
         ),
       ],
@@ -317,7 +411,7 @@ class _ActionChip extends StatelessWidget {
         borderRadius: AppRadii.r8,
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             borderRadius: AppRadii.r8,
             border: Border.all(
@@ -325,26 +419,35 @@ class _ActionChip extends StatelessWidget {
                   ? (isDark ? AppColors.brand : AppColors.brandDark)
                   : cs.outline,
             ),
+            boxShadow: isPrimary && isDark
+                ? [
+                    BoxShadow(
+                      color: AppColors.brand.withAlpha(20),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: 19,
                 color: isPrimary
                     ? (isDark ? AppColors.brand : AppColors.brandDark)
                     : cs.onSurface,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Text(
                 label,
                 style: AppTypography.bodySmall.copyWith(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: isPrimary
-                    ? (isDark ? AppColors.brand : AppColors.brandDark)
-                    : cs.onSurface,
+                      ? (isDark ? AppColors.brand : AppColors.brandDark)
+                      : cs.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -372,10 +475,11 @@ class _RecentActivityList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (activity.isEmpty) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: AppRadii.r12,
@@ -384,8 +488,15 @@ class _RecentActivityList extends StatelessWidget {
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.history_rounded, size: 32, color: cs.onSurfaceVariant.withAlpha(120)),
-              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cs.onSurfaceVariant.withAlpha(20),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.history_rounded, size: 28, color: cs.onSurfaceVariant.withAlpha(160)),
+              ),
+              const SizedBox(height: 10),
               Text(
                 'No check-in activity recorded yet today',
                 style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
@@ -410,21 +521,46 @@ class _RecentActivityList extends StatelessWidget {
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (ctx, i) {
           final item = activity[i];
+          final initial = item.memberName.isNotEmpty ? item.memberName[0].toUpperCase() : 'A';
+
           return ListTile(
             dense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-            leading: const Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 18),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            leading: CircleAvatar(
+              radius: 16,
+              backgroundColor: isDark ? AppColors.brand.withAlpha(30) : AppColors.brandContainer,
+              child: Text(
+                initial,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? AppColors.brand : AppColors.brandDark,
+                ),
+              ),
+            ),
             title: Text(
               item.memberName,
               style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w700, fontSize: 13),
             ),
             subtitle: Text(
-              'Check-in (${item.memberNumber}) • ${item.source}',
-              style: AppTypography.bodySmall.copyWith(fontSize: 11),
+              'Pass #${item.memberNumber} • ${item.source}',
+              style: AppTypography.bodySmall.copyWith(fontSize: 11, color: cs.onSurfaceVariant),
             ),
-            trailing: Text(
-              _formatTime(item.checkInAt),
-              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant, fontSize: 10),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.dSurfaceAlt : AppColors.lSurfaceAlt,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: cs.outline, width: 0.8),
+              ),
+              child: Text(
+                _formatTime(item.checkInAt),
+                style: AppTypography.bodySmall.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           );
         },

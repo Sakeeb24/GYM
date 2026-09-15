@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_button.dart';
@@ -22,7 +23,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _localError;
 
   @override
+  void initState() {
+    super.initState();
+    _fullName.addListener(_clearErrorOnInput);
+    _phone.addListener(_clearErrorOnInput);
+  }
+
+  void _clearErrorOnInput() {
+    if (_localError != null) {
+      setState(() => _localError = null);
+    }
+  }
+
+  @override
   void dispose() {
+    _fullName.removeListener(_clearErrorOnInput);
+    _phone.removeListener(_clearErrorOnInput);
     _fullName.dispose();
     _phone.dispose();
     super.dispose();
@@ -34,13 +50,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final phone = _phone.text.trim();
 
     if (name.isEmpty) {
+      HapticFeedback.mediumImpact();
       setState(() => _localError = 'Please enter your full name.');
       return;
     }
     if (phone.isEmpty || phone.length < 8) {
+      HapticFeedback.mediumImpact();
       setState(() => _localError = 'Please enter a valid phone number (e.g. +91 98765 43210).');
       return;
     }
+
+    HapticFeedback.lightImpact();
 
     // Step 1 Complete -> Proceed directly to Step 2 (QR Verification).
     // Phone number is recorded for gym contact records; NO SMS OTP is sent.
@@ -100,7 +120,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     'Step 1 of 3: Enter your name and contact phone number.',
                     style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+
+                  const RegistrationContextCard(
+                    icon: Icons.shield_outlined,
+                    title: 'NO SMS OTP REQUIRED',
+                    subtitle: 'Phone number is recorded for gym contact and attendance records. Verification is done directly via gym activation code or QR in Step 2.',
+                  ),
+                  const SizedBox(height: 20),
 
                   AppTextField(
                     controller: _fullName,

@@ -1,7 +1,6 @@
-// lib/features/members/presentation/members_screen.dart
-// Clean, Compact Member Roster & Enhanced Athlete Profiles (Apex Precision)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/business_rules/business_rules.dart';
 import '../../../core/models/member.dart';
 import '../../../core/services/supabase_client.dart';
@@ -524,6 +523,7 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
   int _daysActive = 0;
   List<Map<String, dynamic>> _sessions = [];
   bool _loggingCheckIn = false;
+  bool _togglingStatus = false;
 
   @override
   void initState() {
@@ -595,19 +595,123 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
     }
   }
 
+  Future<void> _toggleMemberStatus() async {
+    final nextStatus = _currentMember.isActive ? 'inactive' : 'active';
+    setState(() => _togglingStatus = true);
+
+    try {
+      if (AppSupabase.isConfigured) {
+        await AppSupabase.client
+            .from('members')
+            .update({'status': nextStatus})
+            .eq('id', _currentMember.id);
+      }
+
+      if (mounted) {
+        setState(() {
+          _currentMember = _currentMember.copyWith(status: nextStatus);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${_currentMember.fullName} status updated to ${nextStatus.toUpperCase()}'),
+            backgroundColor: nextStatus == 'active' ? AppColors.brand : AppColors.warning,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppErrorMapper.toUserMessage(e)),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _togglingStatus = false);
+    }
+  }
+
+  void _openPassQrDialog() {
+    final cs = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: AppRadii.r16),
+        title: Row(
+          children: [
+            const Icon(Icons.qr_code_2_rounded, color: AppColors.brand, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Digital Gym Pass',
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cs.outline),
+              ),
+              child: QrImageView(
+                data: 'LF-PASS-${_currentMember.gymId}-${_currentMember.memberNumber}',
+                version: QrVersions.auto,
+                size: 190,
+                backgroundColor: Colors.white,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Color(0xFF111316),
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Color(0xFF111316),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _currentMember.fullName,
+              style: AppTypography.titleMedium.copyWith(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Pass #LF-${_currentMember.memberNumber} • $_planName',
+              style: AppTypography.bodySmall.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleManualCheckIn() async {
     setState(() => _loggingCheckIn = true);
     try {
       final client = AppSupabase.client;
       final idem = 'manual_${_currentMember.id}_${DateTime.now().millisecondsSinceEpoch}';
 
-      await client.from('attendance').insert({
-        'gym_id': _currentMember.gymId,
-        'member_id': _currentMember.id,
-        'source': 'manual',
-        'check_in_at': DateTime.now().toUtc().toIso8601String(),
-        'idempotency_key': idem,
-      });
+      if (AppSupabase.isConfigured) {
+        await client.from('attendance').insert({
+          'gym_id': _currentMember.gymId,
+          'member_id': _currentMember.id,
+          'source': 'manual',
+          'check_in_at': DateTime.now().toUtc().toIso8601String(),
+          'idempotency_key': idem,
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -749,9 +853,12 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          AppBadge(
-                            label: _currentMember.isActive ? 'ACTIVE' : 'INACTIVE',
-                            color: _currentMember.isActive ? AppColors.brand : AppColors.warning,
+                          GestureDetector(
+                            onTap: _togglingStatus ? null : _toggleMemberStatus,
+                            child: AppBadge(
+                              label: _currentMember.isActive ? 'ACTIVE' : 'INACTIVE',
+                              color: _currentMember.isActive ? AppColors.brand : AppColors.warning,
+                            ),
                           ),
                         ],
                       ),
@@ -804,7 +911,7 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
                     onTap: _openEditDialog,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _QuickActionButton(
                     icon: Icons.autorenew_rounded,
@@ -812,7 +919,15 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
                     onTap: _openRenewDialog,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _QuickActionButton(
+                    icon: Icons.qr_code_2_rounded,
+                    label: 'Pass QR',
+                    onTap: _openPassQrDialog,
+                  ),
+                ),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _QuickActionButton(
                     icon: Icons.send_rounded,
@@ -820,12 +935,12 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
                     onTap: _openQuickContactDialog,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Expanded(
                   child: _QuickActionButton(
                     icon: _loggingCheckIn ? Icons.hourglass_top_rounded : Icons.check_circle_outline_rounded,
                     label: 'Check In',
-                    color: AppColors.brand,
+                    color: isDark ? AppColors.brand : AppColors.brandDark,
                     onTap: _loggingCheckIn ? null : _handleManualCheckIn,
                   ),
                 ),
@@ -839,7 +954,7 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
               // ── Membership Info Card ──────────────────────────────────
               Container(
                 decoration: BoxDecoration(
-                  color: cs.surface,
+                  color: isDark ? AppColors.dSurface : cs.surface,
                   borderRadius: AppRadii.r12,
                   border: Border.all(color: cs.outline),
                 ),
@@ -877,7 +992,7 @@ class _AthleteProfileSheetState extends ConsumerState<_AthleteProfileSheet> {
                             border: Border.all(
                               color: (_expiresAt != null && _expiresAt!.isBefore(DateTime.now()))
                                   ? AppColors.error
-                                  : AppColors.brand,
+                                  : (isDark ? AppColors.brand : AppColors.brandDark),
                             ),
                           ),
                           child: Text(
@@ -1025,11 +1140,11 @@ class _QuickActionButton extends StatelessWidget {
             borderRadius: AppRadii.r8,
             border: Border.all(color: cs.outline),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18, color: targetColor),
+              Icon(icon, size: 17, color: targetColor),
               const SizedBox(height: 4),
               Text(
                 label,
@@ -1067,3 +1182,4 @@ class _DataRow extends StatelessWidget {
     );
   }
 }
+

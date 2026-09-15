@@ -1,6 +1,7 @@
 // lib/features/auth/presentation/verify_gym_screen.dart
 // Registration Step 2: Real Camera QR Gym Verification
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -65,7 +66,19 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
     final rawValue = barcodes.first.rawValue;
     if (rawValue == null || rawValue.trim().isEmpty) return;
 
+    HapticFeedback.mediumImpact();
     _validateToken(rawValue.trim());
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim();
+      if (text != null && text.isNotEmpty) {
+        _manualCodeController.text = text;
+        HapticFeedback.lightImpact();
+      }
+    } catch (_) {}
   }
 
   Future<void> _validateToken(String rawPayload) async {
@@ -75,18 +88,22 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
     });
 
     try {
-      final repo = ref.read(memberActivationRepositoryProvider);
-      final result = await repo.validateActivationToken(rawPayload);
-
       // Extract cleaned token
-      String token = rawPayload;
+      String token = rawPayload.trim();
       if (token.startsWith('liftflow://member-activation/')) {
         token = token.replaceFirst('liftflow://member-activation/', '').trim();
       } else if (token.contains('/activate/')) {
         token = token.split('/activate/')[1].trim();
       }
+      if (token.contains('?')) {
+        token = token.split('?').first.trim();
+      }
+
+      final repo = ref.read(memberActivationRepositoryProvider);
+      final result = await repo.validateActivationToken(token);
 
       if (mounted) {
+        HapticFeedback.lightImpact();
         setState(() {
           _scannedToken = token;
           _verifiedGym = result;
@@ -221,6 +238,26 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.brand.withAlpha(25),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.brand.withAlpha(60)),
+                            ),
+                            child: Text(
+                              'MONTHLY REUSABLE QR',
+                              style: AppTypography.labelAthletic.copyWith(
+                                fontSize: 9,
+                                letterSpacing: 0.8,
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? AppColors.brand
+                                    : AppColors.brandDark,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -339,6 +376,8 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
                                   Positioned(top: 0, right: 0, child: _CornerBracket(isTop: true, isLeft: false)),
                                   Positioned(bottom: 0, left: 0, child: _CornerBracket(isTop: false, isLeft: true)),
                                   Positioned(bottom: 0, right: 0, child: _CornerBracket(isTop: false, isLeft: false)),
+                                  if (!_validating)
+                                    const ScannerLaserOverlay(width: 200, height: 200),
                                   if (_validating)
                                     const Center(
                                       child: CircularProgressIndicator(
@@ -417,6 +456,11 @@ class _VerifyGymScreenState extends ConsumerState<VerifyGymScreen> {
                       label: 'Activation / Verification Code',
                       hint: 'Paste or type code (e.g. act_solo-fitness_2026_09)',
                       textInputAction: TextInputAction.done,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.content_paste_rounded, size: 18),
+                        tooltip: 'Paste Code',
+                        onPressed: _pasteFromClipboard,
+                      ),
                       onSubmitted: (val) {
                         final code = val.trim();
                         if (code.isNotEmpty && !_validating) {
