@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
       return jsonError('This activation token is invalid.', 400);
     }
 
-    // --- 3. Validate Activation Token ---
+    // --- 3. Pre-validate activation token & resolve gymId for Auth user app_metadata ---
     const tokenHash = await sha256Hex(activation_token);
     const { data: tokenRecord } = await admin
       .from('member_activation_tokens')
@@ -112,8 +112,6 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     let gymId: string;
-    let tokenId: string | null = null;
-    let tokenType = 'monthly';
 
     if (tokenRecord) {
       if (tokenRecord.revoked_at) {
@@ -127,8 +125,6 @@ Deno.serve(async (req: Request) => {
         return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
       }
       gymId = tokenRecord.gym_id;
-      tokenId = tokenRecord.id;
-      tokenType = tokenRecord.token_type ?? 'monthly';
     } else if (activation_token.startsWith('act_')) {
       const parts = activation_token.split('_');
       if (parts.length >= 4) {
@@ -159,7 +155,6 @@ Deno.serve(async (req: Request) => {
           return jsonError('This QR code is not valid for LiftFlow.', 404);
         }
         gymId = gym.id;
-        tokenType = 'monthly';
       } else {
         return jsonError('This QR code is not valid for LiftFlow.', 404);
       }
@@ -167,45 +162,9 @@ Deno.serve(async (req: Request) => {
       return jsonError('This QR code is not valid for LiftFlow.', 404);
     }
 
-    // --- 4. Resolve or enroll member record ---
-    let { data: memberRow } = await admin
-      .from('members')
-      .select('id, gym_id, profile_id, full_name')
-      .eq('gym_id', gymId)
-      .eq('phone', cleanPhone)
-      .maybeSingle();
-
-    if (memberRow && memberRow.profile_id) {
-      return jsonError(
-        'This phone number is already registered. Please log in with your username and password.',
-        409,
-      );
-    }
-
-    if (!memberRow) {
-      const memberNumber = `M-${Math.floor(1000 + Math.random() * 9000)}`;
-      const { data: newMember, error: createMemErr } = await admin
-        .from('members')
-        .insert({
-          gym_id: gymId,
-          member_number: memberNumber,
-          full_name: full_name.trim(),
-          phone: cleanPhone,
-        })
-        .select('id, gym_id, profile_id, full_name')
-        .single();
-
-      if (createMemErr || !newMember) {
-        return jsonError(`Failed to enroll member: ${createMemErr?.message ?? 'database error'}`, 500);
-      }
-      memberRow = newMember;
-    }
-
-    const memberId: string = memberRow.id;
     const syntheticEmail = `${cleanUsername}@liftflow.internal`;
 
-    // --- 5. Create Auth User atomically ---
-    let newUserId: string;
+    // --- 4. Create Supabase Auth User with gym_id & role app_metadata ---
     const { data: signUpData, error: signUpErr } = await admin.auth.admin.createUser({
       email: syntheticEmail,
       password,
@@ -237,105 +196,71 @@ Deno.serve(async (req: Request) => {
       }
       return jsonError(`Account creation failed: ${signUpErr?.message ?? 'unknown error'}`, 500);
     }
-    newUserId = signUpData.user.id;
 
-    // --- 6. Handle token consumption (only for single_use tokens) & link profile/member ---
+    const newUserId = signUpData.user.id;
+
+    // --- 5. Call Atomic Database RPC (complete_member_registration) ---
+    const { data: rpcData, error: rpcErr } = await admin.rpc('complete_member_registration', {
+      p_user_id: newUserId,
+      p_full_name: full_name.trim(),
+      p_phone: cleanPhone,
+      p_username: cleanUsername,
+      p_email: syntheticEmail,
+      p_activation_token: activation_token,
+      p_token_hash: tokenHash,
+    });
+
+    if (rpcErr) {
+      // Manual compensation: Remove orphaned Auth user when DB transaction fails/rolls back
+      await admin.auth.admin.deleteUser(newUserId).catch(() => {});
+
+      const errMsg = rpcErr.message || '';
+
+      if (
+        errMsg.includes('PHONE_ALREADY_REGISTERED') ||
+        errMsg.includes('idx_profiles_phone_unique') ||
+        (errMsg.includes('23505') && errMsg.includes('phone'))
+      ) {
+        return jsonError(
+          'This phone number is already registered. Please log in with your username and password.',
+          409,
+        );
+      }
+      if (
+        errMsg.includes('USERNAME_ALREADY_TAKEN') ||
+        errMsg.includes('profiles_username_key') ||
+        errMsg.includes('idx_profiles_username') ||
+        (errMsg.includes('23505') && errMsg.includes('username'))
+      ) {
+        return jsonError('Username is already taken. Please choose another username.', 409);
+      }
+      if (errMsg.includes('TOKEN_REVOKED')) {
+        return jsonError('This activation QR has been refreshed or canceled. Ask the gym owner for a new QR code.', 410);
+      }
+      if (errMsg.includes('TOKEN_ALREADY_USED')) {
+        return jsonError('This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.', 409);
+      }
+      if (errMsg.includes('TOKEN_EXPIRED')) {
+        return jsonError('This activation QR has expired. Ask the gym owner to generate a new one.', 410);
+      }
+      if (errMsg.includes('TOKEN_INVALID_MONTH')) {
+        return jsonError('This activation QR is not valid for the current month.', 400);
+      }
+      if (errMsg.includes('TOKEN_INVALID')) {
+        return jsonError('This QR code is not valid for LiftFlow.', 404);
+      }
+
+      return jsonError(`Registration transaction rolled back: ${errMsg}`, 500);
+    }
+
+    const memberId = rpcData?.member_id;
+    const gymId = rpcData?.gym_id;
+    const tokenId = rpcData?.token_id;
+    const tokenType = rpcData?.token_type ?? 'monthly';
+
+    // --- 5. Audit log (Non-blocking) ---
     try {
-      if (tokenType === 'single_use' && tokenId) {
-        // Atomic single-use token consumption with race condition prevention
-        const { data: consumedToken, error: consumeErr } = await admin
-          .from('member_activation_tokens')
-          .update({
-            used_at: new Date().toISOString(),
-            used_by_profile_id: newUserId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', tokenId)
-          .is('used_at', null)
-          .is('revoked_at', null)
-          .gt('expires_at', new Date().toISOString())
-          .select('id');
-
-        if (consumeErr || !consumedToken || consumedToken.length === 0) {
-          await admin.auth.admin.deleteUser(newUserId).catch(() => {});
-          return jsonError(
-            'This activation QR has already been consumed or has expired. Please ask your gym owner for a new QR code.',
-            409,
-          );
-        }
-      }
-
-      // Upsert profile
-      const { error: profileErr } = await admin
-        .from('profiles')
-        .upsert({
-          user_id: newUserId,
-          gym_id: gymId,
-          username: cleanUsername,
-          full_name: full_name.trim(),
-          phone: cleanPhone,
-          email: syntheticEmail,
-          role: 'member',
-          status: 'active',
-          phone_verified: true,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (profileErr) {
-        throw new Error(`Profile creation failed: ${profileErr.message}`);
-      }
-
-      // Link member row to newly created auth profile
-      const { error: linkErr } = await admin
-        .from('members')
-        .update({
-          profile_id: newUserId,
-          status: 'active',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', memberId);
-
-      if (linkErr) {
-        throw new Error(`Member profile link failed: ${linkErr.message}`);
-      }
-
-      // Automatically assign default membership plan if no active membership exists
-      const { data: existingMembership } = await admin
-        .from('memberships')
-        .select('id')
-        .eq('member_id', memberId)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (!existingMembership) {
-        // Find default plan or create standard 30-day onboarding membership
-        const { data: defaultPlan } = await admin
-          .from('membership_plans')
-          .select('id, duration_days')
-          .eq('gym_id', gymId)
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle();
-
-        const planId = defaultPlan?.id ?? null;
-        const durationDays = defaultPlan?.duration_days ?? 30;
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-        if (planId) {
-          await admin.from('memberships').insert({
-            gym_id: gymId,
-            member_id: memberId,
-            plan_id: planId,
-            started_at: now.toISOString(),
-            expires_at: expiresAt.toISOString(),
-            status: 'active',
-          });
-        }
-      }
-
-      // Audit log
-      try {
+      if (gymId && memberId) {
         await admin.from('audit_logs').insert({
           gym_id: gymId,
           actor_user_id: newUserId,
@@ -344,43 +269,16 @@ Deno.serve(async (req: Request) => {
           entity_id: memberId,
           detail: { username: cleanUsername, phone: cleanPhone, activation_token_id: tokenId, token_type: tokenType },
         });
-      } catch (_) {
-        // Non-blocking
       }
-
-      return jsonOk({
-        message: 'Registration successful. You can now sign in with your username and password.',
-        user_id: newUserId,
-        member_id: memberId,
-      }, 201);
-    } catch (txErr: unknown) {
-      // Rollback newly created Auth user to prevent orphaned state
-      await admin.auth.admin.deleteUser(newUserId).catch(() => {});
-
-      // Rollback consumed token state if this transaction marked it used (single_use only)
-      if (tokenType === 'single_use' && tokenId) {
-        await admin
-          .from('member_activation_tokens')
-          .update({
-            used_at: null,
-            used_by_profile_id: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', tokenId)
-          .eq('used_by_profile_id', newUserId)
-          .catch(() => {});
-      }
-
-      if (txErr instanceof Error) {
-        const errMsg = txErr.message.toLowerCase();
-        if (errMsg.includes('duplicate') || errMsg.includes('already exists') || errMsg.includes('23505') || errMsg.includes('already registered')) {
-          return jsonError('Username or phone number is already registered.', 409);
-        }
-      }
-
-      const msg = txErr instanceof Error ? txErr.message : String(txErr);
-      return jsonError(`Registration transaction rolled back: ${msg}`, 500);
+    } catch (_) {
+      // Non-blocking audit log
     }
+
+    return jsonOk({
+      message: 'Registration successful. You can now sign in with your username and password.',
+      user_id: newUserId,
+      member_id: memberId,
+    }, 201);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return jsonError(`registerMember error: ${msg}`, 500);
