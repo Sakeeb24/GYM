@@ -41,6 +41,21 @@ async function main() {
 
   // --- Shims for things Supabase provides (not in stock Postgres) ---
   await db.exec('create schema if not exists auth;');
+  await db.exec(`
+    do $$
+    begin
+      if not exists (select from pg_roles where rolname = 'anon') then
+        create role anon;
+      end if;
+      if not exists (select from pg_roles where rolname = 'authenticated') then
+        create role authenticated;
+      end if;
+      if not exists (select from pg_roles where rolname = 'service_role') then
+        create role service_role;
+      end if;
+    end
+    $$;
+  `);
   // Mock auth.users (Supabase-managed table).
   await db.exec(`
     create table auth.users (
@@ -67,7 +82,6 @@ async function main() {
   console.log('Migrations loaded: ' + files.length);
 
   // --- Grant the `authenticated` role the privileges Supabase grants by default ---
-  await db.exec('create role authenticated;');
   await db.exec('grant usage on schema public to authenticated;');
   await db.exec('grant select, insert, update, delete on all tables in schema public to authenticated;');
   await db.exec('grant usage, select on all sequences in schema public to authenticated;');
